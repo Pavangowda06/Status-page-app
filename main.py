@@ -876,28 +876,35 @@ async def get_current_status_data():
         logger.info(f"Prisma status: {details['prisma']} ({non_operational_prisma} components non-operational)")
 
         # Enhanced Grafana processing
-        grafana_components = {}
+        # Enhanced Grafana processing (FIXED to return a List)
+        grafana_components = []  # CHANGED: Back to a list
         try:
             grafana_res = await fetch_with_retry(client, "https://status.grafana.com/api/v2/components.json", "Grafana")
             for comp in grafana_res.json().get("components", []):
                 name = comp.get("name")
                 status = comp.get("status")
-                grafana_components[name] = {
+                
+                # CHANGED: Appending a dictionary to the list, just like your FIRST_CODE
+                grafana_components.append({
+                    "name": name,
                     "status": status,
                     "severity": status if normalize_status(status) != "operational" else None,
-                    "updated_at": comp.get("updated_at")
-                }
+                    "updated_at": comp.get("updated_at"),
+                    "url": f"https://status.grafana.com/components/{comp.get('id')}" # Restored this from your first code
+                })
             logger.info(f"Grafana components loaded: {len(grafana_components)}")
+            
         except Exception as e:
             logger.error(f"Error fetching Grafana components: {e}")
-            grafana_components = {"Grafana API": {"status": "error", "severity": "critical"}}
+            # CHANGED: Error case must also be a list
+            grafana_components = [{"name": "Grafana API", "status": "error", "severity": "critical"}]
 
-        non_operational_grafana = sum(1 for val in grafana_components.values() if normalize_status(val["status"]) != "operational")
+        # CHANGED: Logic updated to count non-operational components in a LIST
+        non_operational_grafana = sum(1 for c in grafana_components if normalize_status(c["status"]) != "operational")
         status_colors["grafana"] = calculate_status_color(non_operational_grafana)
         details["grafana"] = calculate_status_label(non_operational_grafana)
         components["grafana"] = grafana_components
         logger.info(f"Grafana status: {details['grafana']} ({non_operational_grafana} components non-operational)")
-
         # Enhanced Okta processing
         okta_incidents = {}
         try:
