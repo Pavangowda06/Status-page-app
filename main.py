@@ -46,7 +46,7 @@ monitoring_task = None
 notification_history = []
 rate_limiter = {}
 last_notification_times = {}
-status_change_buffer = {}  # Buffer to track consistent changes
+status_change_buffer = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -83,19 +83,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Enhanced Slack Configuration
+# FIXED: Enhanced Slack Configuration with better defaults
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 SLACK_CHANNEL = os.getenv("SLACK_CHANNEL", "#status-alerts")
 SLACK_USERNAME = os.getenv("SLACK_USERNAME", "StatusBot")
 SLACK_ICON_EMOJI = os.getenv("SLACK_ICON_EMOJI", ":warning:")
-MONITORING_INTERVAL = int(os.getenv("MONITORING_INTERVAL", "180"))  # 3 minutes for faster detection
-NOTIFICATION_COOLDOWN = int(os.getenv("NOTIFICATION_COOLDOWN", "600"))  # 10 minutes cooldown
+MONITORING_INTERVAL = int(os.getenv("MONITORING_INTERVAL", "120"))  # Reduced to 2 minutes for faster detection
+NOTIFICATION_COOLDOWN = int(os.getenv("NOTIFICATION_COOLDOWN", "300"))  # Reduced to 5 minutes
 MAX_NOTIFICATIONS_PER_HOUR = int(os.getenv("MAX_NOTIFICATIONS_PER_HOUR", "20"))
-CHANGE_CONFIRMATION_CYCLES = int(os.getenv("CHANGE_CONFIRMATION_CYCLES", "2"))  # Confirm changes over N cycles
+CHANGE_CONFIRMATION_CYCLES = int(os.getenv("CHANGE_CONFIRMATION_CYCLES", "1"))  # FIXED: Reduced to 1 for immediate alerts
 
 # Enhanced service monitoring configuration
 MONITORED_SERVICES = [
-    "github", "datadog", "jira", "jsm", "prisma", "grafana", "okta", "cleverbridge"
+    "github", "datadog", "jira", "jsm", "prisma", "grafana", "okta", "cleverbridge", "azure", "aws"
 ]
 
 SERVICE_PRIORITIES = {
@@ -106,7 +106,9 @@ SERVICE_PRIORITIES = {
     "prisma": "high",
     "grafana": "medium",
     "okta": "critical",
-    "cleverbridge": "low"
+    "cleverbridge": "low",
+    "azure": "critical",
+    "aws": "critical"
 }
 
 # Enhanced Google Gemini Configuration
@@ -116,7 +118,7 @@ try:
     if api_key:
         genai.configure(api_key=api_key)
         gemini_client = genai.GenerativeModel('gemini-1.5-flash')
-        logger.info(f"Gemini client initialized with key: {api_key[:7]}...")
+        logger.info(f"Gemini client initialized")
     else:
         logger.warning("GEMINI_API_KEY not found in environment variables")
 except Exception as e:
@@ -162,7 +164,7 @@ class EnhancedSlackNotification(BaseModel):
     incident_id: Optional[str] = None
 
 def normalize_status(status: str) -> str:
-    """Normalize status strings for consistent comparison"""
+    """FIXED: Improved status normalization"""
     if not status:
         return "unknown"
     
@@ -171,14 +173,14 @@ def normalize_status(status: str) -> str:
     # Normalize common variations
     if status_lower in ["operational", "available", "normal", "ok", "green", "up"]:
         return "operational"
-    elif status_lower in ["degraded performance", "degraded_performance", "degraded", "partial_outage", "partial outage"]:
+    elif status_lower in ["degraded performance", "degraded_performance", "degraded", "partial_outage", "partial outage", "minor issue", "minor_issue"]:
         return "degraded"
-    elif status_lower in ["major_outage", "major outage", "down", "red", "critical", "outage"]:
+    elif status_lower in ["major_outage", "major outage", "down", "red", "critical", "outage", "error"]:
         return "major_outage"
     elif status_lower in ["maintenance", "scheduled maintenance", "under_maintenance"]:
         return "maintenance"
-    elif status_lower in ["minor issue", "minor_issue", "investigating", "identified"]:
-        return "minor_issue"
+    elif status_lower in ["investigating", "identified", "monitoring"]:
+        return "investigating"
     else:
         return status_lower
 
@@ -188,14 +190,12 @@ def get_status_emoji(status: str, severity: str = "info") -> str:
     
     if normalized == "operational":
         return ":white_check_mark:"
-    elif normalized == "degraded":
+    elif normalized in ["degraded", "investigating"]:
         return ":warning:"
     elif normalized == "major_outage":
         return ":red_circle:"
     elif normalized == "maintenance":
         return ":wrench:"
-    elif normalized == "minor_issue":
-        return ":yellow_circle:"
     else:
         return ":question:"
 
@@ -207,21 +207,21 @@ def get_priority_color(priority: str, status_change: str) -> str:
         return "good"
     elif normalized_current == "major_outage":
         return "danger"
-    elif normalized_current in ["degraded", "minor_issue"]:
+    elif normalized_current in ["degraded", "investigating"]:
         return "warning"
     elif normalized_current == "maintenance":
-        return "#439FE0"  # Blue
+        return "#439FE0"
     else:
         priority_colors = {
             "critical": "danger",
-            "high": "danger", 
+            "high": "warning", 
             "medium": "warning",
             "low": "#439FE0"
         }
         return priority_colors.get(priority, "warning")
 
 def should_send_notification(notification: EnhancedSlackNotification) -> bool:
-    """Enhanced rate limiting with smarter duplicate prevention"""
+    """FIXED: Simplified rate limiting logic"""
     global rate_limiter, notification_history, last_notification_times
     
     current_time = datetime.utcnow()
@@ -233,7 +233,7 @@ def should_send_notification(notification: EnhancedSlackNotification) -> bool:
         last_notification_times[service] = current_time
         return True
     
-    # Check cooldown for non-recovery notifications
+    # FIXED: More lenient cooldown check
     if service in last_notification_times:
         time_diff = (current_time - last_notification_times[service]).total_seconds()
         if time_diff < NOTIFICATION_COOLDOWN:
@@ -261,7 +261,7 @@ def should_send_notification(notification: EnhancedSlackNotification) -> bool:
     return True
 
 async def send_enhanced_slack_notification(notification: EnhancedSlackNotification) -> bool:
-    """Enhanced Slack notification with rich formatting"""
+    """FIXED: Enhanced Slack notification with better error handling"""
     if not SLACK_WEBHOOK_URL:
         logger.warning("Slack webhook URL not configured")
         return False
@@ -286,17 +286,13 @@ async def send_enhanced_slack_notification(notification: EnhancedSlackNotificati
         else:
             priority_indicator = ":rotating_light: " if notification.priority == "critical" else ""
             title = f"{status_emoji} {priority_indicator}Service Alert: {notification.service.upper()}"
-            message_text = f"Service status changed from {notification.previous_status} to {notification.current_status}"
+            message_text = f"Status changed: {notification.previous_status} → {notification.current_status}"
         
+        # FIXED: Simplified fields structure
         fields = [
             {
                 "title": "Service",
                 "value": f"*{notification.service.upper()}*",
-                "short": True
-            },
-            {
-                "title": "Priority",
-                "value": f"*{notification.priority.title()}*",
                 "short": True
             },
             {
@@ -305,52 +301,36 @@ async def send_enhanced_slack_notification(notification: EnhancedSlackNotificati
                 "short": True
             },
             {
-                "title": "Current Status",
+                "title": "Current Status", 
                 "value": f"*{notification.current_status}*",
+                "short": True
+            },
+            {
+                "title": "Priority",
+                "value": f"*{notification.priority.title()}*",
                 "short": True
             }
         ]
         
-        if notification.region:
-            fields.append({
-                "title": "Region",
-                "value": notification.region,
-                "short": True
-            })
-        
-        if notification.recovery_eta:
-            fields.append({
-                "title": "Expected Resolution",
-                "value": notification.recovery_eta,
-                "short": True
-            })
-        
         timestamp_unix = int(datetime.utcnow().timestamp())
-        fields.append({
-            "title": "Detected At",
-            "value": f"<!date^{timestamp_unix}^{{date_short_pretty}} {{time}}|{notification.timestamp}>",
-            "short": True
-        })
         
+        # FIXED: Simplified payload structure
         payload = {
-            "channel": SLACK_CHANNEL,
-            "username": SLACK_USERNAME,
-            "icon_emoji": SLACK_ICON_EMOJI,
+            "text": f"Status Alert: {notification.service.upper()}",
             "attachments": [{
                 "fallback": f"{notification.service.upper()}: {notification.previous_status} → {notification.current_status}",
                 "color": color,
                 "title": title,
-                "title_link": notification.incident_url if notification.incident_url else None,
                 "text": message_text,
                 "fields": fields,
-                "footer": "Enhanced Status Monitor",
-                "ts": timestamp_unix,
-                "mrkdwn_in": ["text", "fields"]
+                "footer": "Status Monitor",
+                "ts": timestamp_unix
             }]
         }
         
+        # Add components if available
         if notification.components_affected:
-            components_text = ", ".join(f"*{comp}*" for comp in notification.components_affected[:5])
+            components_text = ", ".join(notification.components_affected[:5])
             if len(notification.components_affected) > 5:
                 components_text += f" and {len(notification.components_affected) - 5} more"
             
@@ -360,51 +340,40 @@ async def send_enhanced_slack_notification(notification: EnhancedSlackNotificati
                 "short": False
             })
         
-        if notification.impact_description:
-            payload["attachments"][0]["fields"].append({
-                "title": "Impact Description", 
-                "value": notification.impact_description,
-                "short": False
-            })
+        logger.info(f"Sending Slack notification for {notification.service}: {notification.previous_status} → {notification.current_status}")
         
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.post(
-                        SLACK_WEBHOOK_URL,
-                        json=payload,
-                        headers={"Content-Type": "application/json"}
-                    )
-                    
-                    if response.status_code == 200:
-                        logger.info(f"Slack notification sent for {notification.service}: {notification.previous_status} → {notification.current_status}")
-                        return True
-                    else:
-                        logger.warning(f"Slack notification failed (attempt {attempt + 1}): {response.status_code} - {response.text}")
-                        if attempt < max_retries - 1:
-                            await asyncio.sleep(2 ** attempt)
+        # FIXED: Better HTTP client handling
+        timeout = httpx.Timeout(30.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(
+                SLACK_WEBHOOK_URL,
+                json=payload,
+                headers={"Content-Type": "application/json"}
+            )
+            
+            if response.status_code == 200:
+                logger.info(f"✓ Slack notification sent successfully for {notification.service}")
+                return True
+            else:
+                logger.error(f"✗ Slack notification failed: {response.status_code} - {response.text}")
+                return False
                         
-            except Exception as e:
-                logger.error(f"Slack notification error (attempt {attempt + 1}): {e}")
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(2 ** attempt)
-        
-        return False
-                
     except Exception as e:
-        logger.error(f"Critical error in Slack notification: {e}")
+        logger.error(f"Critical error in Slack notification for {notification.service}: {e}")
         return False
 
 def detect_enhanced_status_changes(current_status: dict, previous: dict) -> List[EnhancedSlackNotification]:
-    """Enhanced status change detection with better accuracy"""
+    """FIXED: More aggressive change detection"""
     global status_change_buffer
     
     notifications = []
     current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     
+    logger.info("Starting status change detection...")
+    
     for service in MONITORED_SERVICES:
         if service not in current_status.get("details", {}):
+            logger.debug(f"Service {service} not found in current status")
             continue
             
         current_service_status = current_status["details"][service]
@@ -414,49 +383,53 @@ def detect_enhanced_status_changes(current_status: dict, previous: dict) -> List
         current_normalized = normalize_status(current_service_status)
         previous_normalized = normalize_status(previous_service_status)
         
-        logger.debug(f"Service {service}: {previous_normalized} -> {current_normalized}")
+        logger.info(f"Checking {service}: '{previous_service_status}' ({previous_normalized}) → '{current_service_status}' ({current_normalized})")
         
-        # Skip if no meaningful change or if previous is unknown (initial state)
-        if (current_normalized == previous_normalized or 
-            previous_normalized == "unknown"):
+        # FIXED: Skip only if truly no change AND previous is not unknown
+        if current_normalized == previous_normalized and previous_normalized != "unknown":
+            logger.debug(f"No change for {service}")
             continue
         
-        # Use buffer to confirm persistent changes
+        # FIXED: Allow initial state notifications (when previous is unknown)
+        if previous_normalized == "unknown" and current_normalized == "operational":
+            logger.debug(f"Skipping initial operational state for {service}")
+            continue
+            
+        # FIXED: Reduced confirmation requirement - immediate notifications for non-operational states
         buffer_key = f"{service}_{current_normalized}"
         
-        if buffer_key not in status_change_buffer:
-            status_change_buffer[buffer_key] = {
-                'count': 1,
-                'first_seen': datetime.utcnow(),
-                'previous_status': previous_service_status,
-                'current_status': current_service_status,
-                'normalized_current': current_normalized,
-                'normalized_previous': previous_normalized
-            }
-            logger.info(f"Status change detected for {service}, buffering: {previous_normalized} -> {current_normalized} (1/{CHANGE_CONFIRMATION_CYCLES})")
-            continue
+        # For critical changes, send immediately
+        if (current_normalized in ["major_outage", "degraded"] or 
+            (current_normalized == "operational" and previous_normalized in ["major_outage", "degraded"])):
+            logger.info(f"Critical change detected for {service} - sending immediately")
         else:
-            status_change_buffer[buffer_key]['count'] += 1
-            logger.info(f"Status change confirmed for {service}: {previous_normalized} -> {current_normalized} ({status_change_buffer[buffer_key]['count']}/{CHANGE_CONFIRMATION_CYCLES})")
-        
-        # Only trigger notification after confirmation cycles (unless it's a recovery)
-        if (status_change_buffer[buffer_key]['count'] < CHANGE_CONFIRMATION_CYCLES and 
-            current_normalized != "operational"):
-            continue
-        
-        # Clear buffer entry after processing
-        buffer_data = status_change_buffer.pop(buffer_key, {})
-        
-        # Clean old buffer entries
-        cutoff_time = datetime.utcnow() - timedelta(minutes=30)
-        status_change_buffer = {
-            k: v for k, v in status_change_buffer.items() 
-            if v.get('first_seen', cutoff_time) > cutoff_time
-        }
+            # Use buffer for minor changes
+            if buffer_key not in status_change_buffer:
+                status_change_buffer[buffer_key] = {
+                    'count': 1,
+                    'first_seen': datetime.utcnow(),
+                    'previous_status': previous_service_status,
+                    'current_status': current_service_status,
+                    'normalized_current': current_normalized,
+                    'normalized_previous': previous_normalized
+                }
+                logger.info(f"Buffering change for {service}: {previous_normalized} → {current_normalized} (1/{CHANGE_CONFIRMATION_CYCLES})")
+                
+                if CHANGE_CONFIRMATION_CYCLES > 1:
+                    continue
+            else:
+                status_change_buffer[buffer_key]['count'] += 1
+                logger.info(f"Confirming change for {service}: {previous_normalized} → {current_normalized} ({status_change_buffer[buffer_key]['count']}/{CHANGE_CONFIRMATION_CYCLES})")
+            
+            # Only trigger notification after confirmation cycles
+            if status_change_buffer[buffer_key]['count'] < CHANGE_CONFIRMATION_CYCLES:
+                continue
+            
+            # Clear buffer entry after processing
+            buffer_data = status_change_buffer.pop(buffer_key, {})
         
         # Enhanced component analysis
         affected_components = []
-        impact_description = ""
         region_info = None
         
         try:
@@ -464,24 +437,15 @@ def detect_enhanced_status_changes(current_status: dict, previous: dict) -> List
                 components = current_status["components"][service]
                 
                 if isinstance(components, dict):
-                    if service == "datadog":
-                        for region_name, region_data in components.items():
-                            if isinstance(region_data, dict):
-                                region_status = normalize_status(region_data.get("status", ""))
-                                if region_status != "operational":
-                                    affected_components.append(f"{region_name} Region")
-                                    if not region_info:
-                                        region_info = region_name
-                    else:
-                        for comp_name, comp_info in components.items():
-                            if isinstance(comp_info, dict):
-                                comp_status = normalize_status(comp_info.get("status", ""))
-                                if comp_status != "operational":
-                                    affected_components.append(comp_name)
-                            elif isinstance(comp_info, str):
-                                comp_status = normalize_status(comp_info)
-                                if comp_status != "operational":
-                                    affected_components.append(comp_name)
+                    for comp_name, comp_info in components.items():
+                        if isinstance(comp_info, dict):
+                            comp_status = normalize_status(comp_info.get("status", ""))
+                            if comp_status != "operational":
+                                affected_components.append(comp_name)
+                        elif isinstance(comp_info, str):
+                            comp_status = normalize_status(comp_info)
+                            if comp_status != "operational":
+                                affected_components.append(comp_name)
                 elif isinstance(components, list):
                     for comp in components:
                         if isinstance(comp, dict):
@@ -498,40 +462,24 @@ def detect_enhanced_status_changes(current_status: dict, previous: dict) -> List
             severity = "resolved"
         elif current_normalized == "major_outage":
             severity = "critical"
-        elif current_normalized == "degraded":
+        elif current_normalized in ["degraded", "investigating"]:
             severity = "warning"
         elif current_normalized == "maintenance":
             severity = "info"
         else:
             severity = "warning"
         
-        # Enhanced impact description
-        if affected_components:
-            if len(affected_components) == 1:
-                impact_description = f"Affecting {affected_components[0]}"
-            elif len(affected_components) <= 3:
-                impact_description = f"Affecting {', '.join(affected_components)}"
-            else:
-                impact_description = f"Affecting {len(affected_components)} components"
-        
         # Generate incident URL
-        incident_url = None
-        if service == "github":
-            incident_url = "https://www.githubstatus.com"
-        elif service == "datadog" and region_info:
-            incident_url = datadog_regions.get(region_info, "https://status.datadoghq.com")
-        elif service == "jira":
-            incident_url = "https://jira-software.status.atlassian.com"
-        elif service == "jsm":
-            incident_url = "https://jira-service-management.status.atlassian.com"
-        elif service == "prisma":
-            incident_url = "https://www.prisma-status.com"
-        elif service == "grafana":
-            incident_url = "https://status.grafana.com"
-        elif service == "okta":
-            incident_url = "https://status.okta.com"
-        elif service == "cleverbridge":
-            incident_url = "https://status.cleverbridge.com"
+        incident_urls = {
+            "github": "https://www.githubstatus.com",
+            "datadog": "https://status.datadoghq.com",
+            "jira": "https://jira-software.status.atlassian.com",
+            "jsm": "https://jira-service-management.status.atlassian.com",
+            "prisma": "https://www.prisma-status.com",
+            "grafana": "https://status.grafana.com",
+            "okta": "https://status.okta.com",
+            "cleverbridge": "https://status.cleverbridge.com"
+        }
         
         notification = EnhancedSlackNotification(
             service=service,
@@ -540,21 +488,21 @@ def detect_enhanced_status_changes(current_status: dict, previous: dict) -> List
             timestamp=current_time,
             severity=severity,
             priority=priority,
-            components_affected=affected_components[:10],  # Limit components
+            components_affected=affected_components[:5],
             duration="ongoing" if current_normalized != "operational" else "resolved",
-            impact_description=impact_description,
-            incident_url=incident_url,
+            incident_url=incident_urls.get(service),
             region=region_info,
             incident_id=f"{service}-{int(datetime.utcnow().timestamp())}"
         )
         
         notifications.append(notification)
         
-        logger.info(f"Status change confirmed: {service} {previous_service_status} → {current_service_status} (Priority: {priority}, Severity: {severity})")
+        logger.info(f"✓ Status change confirmed: {service} {previous_service_status} → {current_service_status} (Priority: {priority}, Severity: {severity})")
     
+    logger.info(f"Status change detection complete. Found {len(notifications)} changes.")
     return notifications
 
-# Helper functions for status calculation
+# Helper functions for status calculation remain the same
 def calculate_status_color(red_issue_count):
     if red_issue_count == 0:
         return "green"
@@ -571,7 +519,7 @@ def calculate_status_label(red_issue_count):
     else:
         return "DEGRADED"
 
-# Azure and AWS status processing functions (keeping your existing logic)
+# Azure and AWS processing functions remain the same
 def load_azure_status():
     try:
         if os.path.exists("azure_status_structured.json"):
@@ -741,10 +689,12 @@ def process_aws_data(aws_data):
     return processed_data, aws_color, aws_label
 
 async def get_current_status_data():
-    """Enhanced status data collection with better error handling"""
+    """FIXED: Enhanced status data collection with better error handling"""
     details = {}
     status_colors = {}
     components = {}
+
+    logger.info("Starting status data collection...")
 
     # Azure Processing
     try:
@@ -753,6 +703,7 @@ async def get_current_status_data():
         details["azure"] = azure_main_status
         status_colors["azure"] = azure_main_color
         components["azure"] = azure_processed
+        logger.info(f"Azure status: {azure_main_status}")
     except Exception as e:
         logger.error(f"Error processing Azure data: {e}")
         details["azure"] = "ERROR"
@@ -765,6 +716,7 @@ async def get_current_status_data():
         details["aws"] = aws_main_status
         status_colors["aws"] = aws_main_color
         components["aws"] = aws_processed
+        logger.info(f"AWS status: {aws_main_status}")
     except Exception as e:
         logger.error(f"Error processing AWS data: {e}")
         details["aws"] = "ERROR"
@@ -786,8 +738,9 @@ async def get_current_status_data():
                 logger.error(f"Final attempt failed for {service_name}: {e}")
                 raise
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        # Enhanced GitHub processing
+    timeout = httpx.Timeout(30.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        # GitHub processing
         github_components = {}
         try:
             ghc_res = await fetch_with_retry(client, "https://www.githubstatus.com/api/v2/components.json", "GitHub")
@@ -800,6 +753,7 @@ async def get_current_status_data():
                         "severity": status if normalize_status(status) != "operational" else None,
                         "updated_at": comp.get("updated_at")
                     }
+            logger.info(f"GitHub components loaded: {len(github_components)}")
         except Exception as e:
             logger.error(f"Error fetching GitHub status: {e}")
             github_components = {"GitHub API": {"status": "error", "severity": "critical"}}
@@ -808,6 +762,7 @@ async def get_current_status_data():
         status_colors["github"] = calculate_status_color(non_operational)
         details["github"] = calculate_status_label(non_operational)
         components["github"] = github_components
+        logger.info(f"GitHub status: {details['github']} ({non_operational} non-operational)")
 
         # Enhanced Datadog processing
         datadog_regions_status = {}
@@ -849,6 +804,7 @@ async def get_current_status_data():
         status_colors["datadog"] = calculate_status_color(non_operational_dd)
         details["datadog"] = calculate_status_label(non_operational_dd)
         components["datadog"] = datadog_regions_status
+        logger.info(f"Datadog status: {details['datadog']} ({non_operational_dd} regions non-operational)")
 
         # Enhanced Jira processing
         jira_components = {}
@@ -862,6 +818,7 @@ async def get_current_status_data():
                     "severity": status if normalize_status(status) != "operational" else None,
                     "updated_at": comp.get("updated_at")
                 }
+            logger.info(f"Jira components loaded: {len(jira_components)}")
         except Exception as e:
             logger.error(f"Error fetching Jira status: {e}")
             jira_components = {"Jira API": {"status": "error", "severity": "critical"}}
@@ -870,6 +827,7 @@ async def get_current_status_data():
         status_colors["jira"] = calculate_status_color(non_operational_jira)
         details["jira"] = calculate_status_label(non_operational_jira)
         components["jira"] = jira_components
+        logger.info(f"Jira status: {details['jira']} ({non_operational_jira} components non-operational)")
 
         # Enhanced JSM processing
         jsm_components = {}
@@ -883,6 +841,7 @@ async def get_current_status_data():
                     "severity": status if normalize_status(status) != "operational" else None,
                     "updated_at": comp.get("updated_at")
                 }
+            logger.info(f"JSM components loaded: {len(jsm_components)}")
         except Exception as e:
             logger.error(f"Error fetching JSM status: {e}")
             jsm_components = {"JSM API": {"status": "error", "severity": "critical"}}
@@ -891,6 +850,7 @@ async def get_current_status_data():
         status_colors["jsm"] = calculate_status_color(non_operational_jsm)
         details["jsm"] = calculate_status_label(non_operational_jsm)
         components["jsm"] = jsm_components
+        logger.info(f"JSM status: {details['jsm']} ({non_operational_jsm} components non-operational)")
 
         # Enhanced Prisma processing
         prisma_components = {}
@@ -904,6 +864,7 @@ async def get_current_status_data():
                     "severity": status if normalize_status(status) != "operational" else None,
                     "updated_at": comp.get("updated_at")
                 }
+            logger.info(f"Prisma components loaded: {len(prisma_components)}")
         except Exception as e:
             logger.error(f"Error fetching Prisma status: {e}")
             prisma_components = {"Prisma API": {"status": "error", "severity": "critical"}}
@@ -912,30 +873,30 @@ async def get_current_status_data():
         status_colors["prisma"] = calculate_status_color(non_operational_prisma)
         details["prisma"] = calculate_status_label(non_operational_prisma)
         components["prisma"] = prisma_components
+        logger.info(f"Prisma status: {details['prisma']} ({non_operational_prisma} components non-operational)")
 
         # Enhanced Grafana processing
-        grafana_components = []
+        grafana_components = {}
         try:
             grafana_res = await fetch_with_retry(client, "https://status.grafana.com/api/v2/components.json", "Grafana")
             for comp in grafana_res.json().get("components", []):
                 name = comp.get("name")
                 status = comp.get("status")
-                severity = status if normalize_status(status) != "operational" else None
-                grafana_components.append({
-                    "name": name,
+                grafana_components[name] = {
                     "status": status,
-                    "severity": severity,
-                    "updated_at": comp.get("updated_at"),
-                    "url": f"https://status.grafana.com/components/{comp.get('id')}"
-                })
+                    "severity": status if normalize_status(status) != "operational" else None,
+                    "updated_at": comp.get("updated_at")
+                }
+            logger.info(f"Grafana components loaded: {len(grafana_components)}")
         except Exception as e:
             logger.error(f"Error fetching Grafana components: {e}")
-            grafana_components = [{"name": "Grafana API", "status": "error", "severity": "critical"}]
+            grafana_components = {"Grafana API": {"status": "error", "severity": "critical"}}
 
-        non_operational_count = sum(1 for c in grafana_components if normalize_status(c["status"]) != "operational")
-        status_colors["grafana"] = calculate_status_color(non_operational_count)
-        details["grafana"] = calculate_status_label(non_operational_count)
+        non_operational_grafana = sum(1 for val in grafana_components.values() if normalize_status(val["status"]) != "operational")
+        status_colors["grafana"] = calculate_status_color(non_operational_grafana)
+        details["grafana"] = calculate_status_label(non_operational_grafana)
         components["grafana"] = grafana_components
+        logger.info(f"Grafana status: {details['grafana']} ({non_operational_grafana} components non-operational)")
 
         # Enhanced Okta processing
         okta_incidents = {}
@@ -980,6 +941,7 @@ async def get_current_status_data():
                         "published": pub_date,
                         "age_hours": int((datetime.utcnow() - pub_datetime).total_seconds() / 3600)
                     }
+            logger.info(f"Okta incidents found: {len(okta_incidents)}")
         except Exception as e:
             logger.error(f"Error fetching Okta status: {e}")
             okta_incidents = {}
@@ -988,6 +950,7 @@ async def get_current_status_data():
         status_colors["okta"] = calculate_status_color(non_operational_okta)
         details["okta"] = "OPERATIONAL" if non_operational_okta == 0 else f"INCIDENTS ({non_operational_okta})"
         components["okta"] = okta_incidents
+        logger.info(f"Okta status: {details['okta']}")
 
         # Enhanced Cleverbridge processing
         cleverbridge_incidents = {}
@@ -1025,6 +988,7 @@ async def get_current_status_data():
                         "published": pub_date_str,
                         "age_hours": int((datetime.utcnow() - pub_date).total_seconds() / 3600)
                     }
+            logger.info(f"Cleverbridge incidents found: {len(cleverbridge_incidents)}")
         except Exception as e:
             logger.error(f"Error fetching Cleverbridge status: {e}")
             cleverbridge_incidents = {}
@@ -1033,7 +997,10 @@ async def get_current_status_data():
         status_colors["cleverbridge"] = calculate_status_color(non_operational_cb)
         details["cleverbridge"] = "OPERATIONAL" if non_operational_cb == 0 else f"INCIDENTS ({non_operational_cb})"
         components["cleverbridge"] = cleverbridge_incidents
+        logger.info(f"Cleverbridge status: {details['cleverbridge']}")
 
+    logger.info("Status data collection completed")
+    
     return {
         "details": details,
         "status_colors": status_colors,
@@ -1047,21 +1014,25 @@ async def get_current_status_data():
     }
 
 async def enhanced_continuous_monitoring():
-    """Enhanced continuous monitoring with better change detection"""
+    """FIXED: Enhanced continuous monitoring with better change detection and debugging"""
     global previous_status, monitoring_active
     
     monitoring_active = True
     consecutive_errors = 0
     max_consecutive_errors = 5
     
-    logger.info(f"Starting enhanced monitoring every {MONITORING_INTERVAL} seconds")
+    logger.info(f"🚀 Starting enhanced monitoring every {MONITORING_INTERVAL} seconds")
+    logger.info(f"Slack notifications: {'✓ Enabled' if SLACK_WEBHOOK_URL else '✗ Disabled - Set SLACK_WEBHOOK_URL'}")
+    logger.info(f"Change confirmation cycles: {CHANGE_CONFIRMATION_CYCLES}")
+    logger.info(f"Monitored services: {', '.join(MONITORED_SERVICES)}")
     
     # Load previous state if available
     await load_monitoring_state()
     
     while monitoring_active:
         try:
-            logger.info("Starting monitoring cycle...")
+            logger.info("=" * 50)
+            logger.info("🔍 Starting monitoring cycle...")
             
             # Get current status
             current_status = await asyncio.wait_for(
@@ -1072,84 +1043,120 @@ async def enhanced_continuous_monitoring():
             # Initialize previous_status on first run
             if not previous_status:
                 previous_status = current_status
-                logger.info("Initial status baseline established")
+                logger.info("📊 Initial status baseline established")
+                
+                # Log initial status for debugging
+                for service in MONITORED_SERVICES:
+                    if service in current_status["details"]:
+                        logger.info(f"  {service}: {current_status['details'][service]}")
+                
                 consecutive_errors = 0
                 await asyncio.sleep(MONITORING_INTERVAL)
                 continue
             
-            # Enhanced change detection
+            # Enhanced change detection with detailed logging
+            logger.info("🔎 Detecting status changes...")
             notifications = detect_enhanced_status_changes(current_status, previous_status)
             
             # Send notifications
             successful_notifications = 0
-            for notification in notifications:
-                try:
-                    success = await send_enhanced_slack_notification(notification)
-                    if success:
-                        successful_notifications += 1
-                except Exception as e:
-                    logger.error(f"Failed to send notification for {notification.service}: {e}")
+            failed_notifications = 0
+            
+            if notifications:
+                logger.info(f"📨 Found {len(notifications)} status changes to notify")
+                
+                for notification in notifications:
+                    try:
+                        logger.info(f"Sending notification for {notification.service}: {notification.previous_status} → {notification.current_status}")
+                        success = await send_enhanced_slack_notification(notification)
+                        if success:
+                            successful_notifications += 1
+                            logger.info(f"✓ Notification sent successfully for {notification.service}")
+                        else:
+                            failed_notifications += 1
+                            logger.warning(f"✗ Notification failed for {notification.service}")
+                    except Exception as e:
+                        failed_notifications += 1
+                        logger.error(f"✗ Failed to send notification for {notification.service}: {e}")
+            else:
+                logger.info("📊 No status changes detected")
             
             # Update previous status
             previous_status = current_status
             consecutive_errors = 0
             
-            # Enhanced logging
+            # Enhanced logging summary
             total_services = len(current_status.get("details", {}))
             operational_services = sum(1 for status in current_status.get("details", {}).values() 
                                      if normalize_status(status) == "operational")
             
             if notifications:
-                logger.info(f"Monitoring cycle complete - {successful_notifications}/{len(notifications)} notifications sent | Services: {operational_services}/{total_services} operational")
+                logger.info(f"✅ Monitoring cycle complete - {successful_notifications}/{len(notifications)} notifications sent successfully, {failed_notifications} failed")
             else:
-                logger.info(f"Monitoring cycle complete - no changes detected | Services: {operational_services}/{total_services} operational")
+                logger.info(f"✅ Monitoring cycle complete - no changes detected")
+                
+            logger.info(f"📊 Services status: {operational_services}/{total_services} operational")
+            
+            # Log current status for debugging
+            for service in MONITORED_SERVICES:
+                if service in current_status["details"]:
+                    status = current_status["details"][service]
+                    normalized = normalize_status(status)
+                    if normalized != "operational":
+                        logger.info(f"  ⚠️  {service}: {status} ({normalized})")
+                    else:
+                        logger.debug(f"  ✓ {service}: {status}")
             
             # Save state periodically
             await save_monitoring_state()
             
         except asyncio.TimeoutError:
             consecutive_errors += 1
-            logger.error(f"Monitoring cycle timeout (error count: {consecutive_errors})")
+            logger.error(f"⏰ Monitoring cycle timeout (error count: {consecutive_errors})")
         except Exception as e:
             consecutive_errors += 1
-            logger.error(f"Error in monitoring cycle: {e} (error count: {consecutive_errors})")
+            logger.error(f"💥 Error in monitoring cycle: {e} (error count: {consecutive_errors})")
             
             if consecutive_errors >= max_consecutive_errors:
-                logger.critical(f"Too many consecutive errors ({consecutive_errors}), sending alert")
+                logger.critical(f"🚨 Too many consecutive errors ({consecutive_errors}), sending alert")
                 await send_system_alert_notification(f"Monitoring system experiencing issues: {str(e)}")
                 consecutive_errors = 0
         
         # Adaptive sleep based on errors
         if consecutive_errors > 0:
             sleep_time = min(MONITORING_INTERVAL * (2 ** consecutive_errors), 1800)
-            logger.info(f"Extended sleep due to errors: {sleep_time}s")
+            logger.info(f"⏸️  Extended sleep due to errors: {sleep_time}s")
             await asyncio.sleep(sleep_time)
         else:
+            logger.info(f"⏸️  Sleeping for {MONITORING_INTERVAL}s until next cycle...")
             await asyncio.sleep(MONITORING_INTERVAL)
 
 async def send_system_alert_notification(message: str):
     """Send system-level alert notification"""
     if not SLACK_WEBHOOK_URL:
+        logger.warning("Cannot send system alert - Slack webhook URL not configured")
         return
     
     try:
         payload = {
-            "channel": SLACK_CHANNEL,
-            "username": SLACK_USERNAME,
-            "icon_emoji": ":rotating_light:",
+            "text": "Status Monitor System Alert",
             "attachments": [{
                 "color": "danger",
-                "title": "Status Monitor System Alert",
+                "title": "🚨 Status Monitor System Alert",
                 "text": message,
                 "footer": "Enhanced Status Monitor - System Alert",
                 "ts": int(datetime.utcnow().timestamp())
             }]
         }
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            await client.post(SLACK_WEBHOOK_URL, json=payload)
+        timeout = httpx.Timeout(30.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(SLACK_WEBHOOK_URL, json=payload)
+            if response.status_code == 200:
+                logger.info("🚨 System alert notification sent successfully")
+            else:
+                logger.error(f"Failed to send system alert: {response.status_code}")
         
-        logger.info("System alert notification sent")
     except Exception as e:
         logger.error(f"Failed to send system alert: {e}")
 
@@ -1172,9 +1179,9 @@ async def save_monitoring_state():
         with open("monitoring_state.json", "w", encoding='utf-8') as f:
             json.dump(state, f, indent=2, default=str, ensure_ascii=False)
         
-        logger.debug("Monitoring state saved successfully")
+        logger.debug("💾 Monitoring state saved successfully")
     except Exception as e:
-        logger.error(f"Failed to save monitoring state: {e}")
+        logger.error(f"💥 Failed to save monitoring state: {e}")
 
 async def load_monitoring_state():
     """Load monitoring state from disk"""
@@ -1215,11 +1222,11 @@ async def load_monitoring_state():
                     except:
                         entry["timestamp"] = datetime.utcnow()
             
-            logger.info("Monitoring state loaded successfully")
+            logger.info("💾 Monitoring state loaded successfully")
         else:
-            logger.info("No previous monitoring state found, starting fresh")
+            logger.info("🆕 No previous monitoring state found, starting fresh")
     except Exception as e:
-        logger.error(f"Failed to load monitoring state: {e}")
+        logger.error(f"💥 Failed to load monitoring state: {e}")
         previous_status = {}
         notification_history = []
         last_notification_times = {}
@@ -1289,7 +1296,7 @@ Provide a helpful response about the current status. Be factual and concise."""
 
 @app.get("/api/slack/status")
 async def get_enhanced_slack_monitoring_status():
-    """Get comprehensive Slack monitoring status"""
+    """Get comprehensive Slack monitoring status with debugging info"""
     global notification_history, status_change_buffer
     
     recent_notifications = [
@@ -1311,6 +1318,11 @@ async def get_enhanced_slack_monitoring_status():
         "last_check": previous_status.get('timestamp', 'Never') if previous_status else 'Never',
         "notifications_last_24h": len(recent_notifications),
         "pending_changes": len(status_change_buffer),
+        "debug_info": {
+            "total_notification_history": len(notification_history),
+            "last_notification_times_count": len(last_notification_times),
+            "current_status_services": list(previous_status.get('details', {}).keys()) if previous_status else []
+        },
         "recent_notifications": [
             {
                 "service": entry.get('service'),
@@ -1332,7 +1344,7 @@ async def get_enhanced_slack_monitoring_status():
 
 @app.post("/api/slack/test")
 async def test_enhanced_slack_notification():
-    """Test enhanced Slack notification system"""
+    """Test enhanced Slack notification system with debugging"""
     if not SLACK_WEBHOOK_URL:
         return {"error": "Slack webhook URL not configured", "success": False}
     
@@ -1343,15 +1355,14 @@ async def test_enhanced_slack_notification():
         timestamp=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
         severity="warning",
         priority="medium",
-        components_affected=["Test Component 1", "Test Component 2", "Test API Gateway"],
-        duration="15m",
+        components_affected=["Test Component 1", "Test Component 2"],
+        duration="testing",
         impact_description="Testing enhanced notification system",
-        recovery_eta="30 minutes",
-        incident_url="https://status.example.com/incidents/test-123",
-        region="test-region"
+        incident_url="https://status.example.com/test"
     )
     
     try:
+        logger.info("🧪 Sending test notification...")
         success = await send_enhanced_slack_notification(test_notification)
         
         return {
@@ -1366,7 +1377,12 @@ async def test_enhanced_slack_notification():
                 "has_incident_url": bool(test_notification.incident_url)
             },
             "webhook_url": SLACK_WEBHOOK_URL[:50] + "..." if len(SLACK_WEBHOOK_URL) > 50 else SLACK_WEBHOOK_URL,
-            "channel": SLACK_CHANNEL
+            "channel": SLACK_CHANNEL,
+            "debug_info": {
+                "webhook_configured": bool(SLACK_WEBHOOK_URL),
+                "monitoring_active": monitoring_active,
+                "rate_limiting_active": len(notification_history) > 0
+            }
         }
     except Exception as e:
         logger.error(f"Test notification error: {e}")
@@ -1374,11 +1390,11 @@ async def test_enhanced_slack_notification():
 
 @app.post("/api/slack/force-check")
 async def force_enhanced_status_check():
-    """Force an immediate enhanced status check"""
+    """Force an immediate enhanced status check with detailed debugging"""
     global previous_status
     
     try:
-        logger.info("Force check initiated via API")
+        logger.info("🔧 Force check initiated via API")
         current_status = await get_current_status_data()
         
         if not previous_status:
@@ -1386,8 +1402,20 @@ async def force_enhanced_status_check():
             return {
                 "message": "Status initialized, no changes to report", 
                 "status": "initialized",
-                "timestamp": current_status['timestamp']
+                "timestamp": current_status['timestamp'],
+                "services_loaded": list(current_status.get('details', {}).keys())
             }
+        
+        # Log detailed comparison for debugging
+        logger.info("🔍 Comparing status for force check...")
+        for service in MONITORED_SERVICES:
+            if service in current_status.get("details", {}) and service in previous_status.get("details", {}):
+                current = current_status["details"][service]
+                previous = previous_status["details"][service]
+                if current != previous:
+                    logger.info(f"  📊 {service}: {previous} → {current}")
+                else:
+                    logger.debug(f"  ✓ {service}: no change ({current})")
         
         notifications = detect_enhanced_status_changes(current_status, previous_status)
         
@@ -1396,6 +1424,7 @@ async def force_enhanced_status_check():
         
         for notification in notifications:
             try:
+                logger.info(f"📨 Sending force check notification for {notification.service}")
                 success = await send_enhanced_slack_notification(notification)
                 notification_data = {
                     "service": notification.service,
