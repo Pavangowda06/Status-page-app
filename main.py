@@ -1460,7 +1460,7 @@ async def enhanced_main_status_page(request: Request):
         })
     except Exception as e:
         logger.error(f"Error in enhanced main page: {e}")
-        return templates.TemplateResponse("mainstatus.html", {
+        return templates.TemplateResponse("mainstatus3.html", {
             "request": request,
             "details": {},
             "status_colors": {},
