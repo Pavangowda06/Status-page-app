@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Service Status Dashboard</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f9f9f9;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: 2.5em;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 30px;
+      user-select: none;
+      color: #222;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .status-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      max-width: 850px;
+      margin: 0 auto;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      width: 100%;
+      padding: 14px 20px;
+      border-radius: 12px;
+      background-color: #fff;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+      transition: box-shadow 0.25s ease;
+    }
+    .status-row:hover {
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.30);
+    }
+
+    .label {
+      font-weight: 700;
+      font-size: 1.1em;
+      margin-right: 20px;
+      width: 100px;
+      text-align: center;
+      color: #333;
+      user-select: none;
+      flex-shrink: 0;
+      letter-spacing: 0.03em;
+    }
+
+    .status-box {
+      position: relative;
+      width: 100%;
+      display: flex;
+      align-items: center;
+    }
+
+    .green {
+      background-color: #28a745;
+      color: white;
+      font-weight: 700;
+      box-shadow: 0 0 8px #28a745aa;
+      transition: background-color 0.3s ease;
+    }
+
+    .orange {
+      background-color: #fd7e14;
+      color: white;
+      font-weight: 700;
+      box-shadow: 0 0 8px #fd7e14aa;
+      transition: background-color 0.3s ease;
+    }
+
+    .red {
+      background-color: #dc3545;
+      color: white;
+      font-weight: 700;
+      box-shadow: 0 0 8px #dc3545aa;
+      transition: background-color 0.3s ease;
+    }
+
+    .dropdown {
+      position: relative;
+      width: 100%;
+    }
+
+    .dropdown-button {
+      padding: 14px 18px;
+      font-size: 1.05em;
+      width: 100%;
+      border: none;
+      cursor: pointer;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-sizing: border-box;
+      user-select: none;
+      transition: background-color 0.25s ease;
+      box-shadow: inset 0 -3px 0 rgba(0,0,0,0.1);
+    }
+    .dropdown-button:focus {
+      outline: 2px solid #007bff;
+      outline-offset: 2px;
+    }
+
+    .dropdown-content {
+      display: none;
+      position: absolute;
+      background-color: #ffffff;
+      min-width: 100%;
+      box-shadow: 0px 8px 20px rgba(0,0,0,0.25);
+      border-radius: 10px;
+      z-index: 100;
+      padding: 12px 0;
+      text-align: left;
+      max-height: 400px;
+      overflow-y: auto;
+      user-select: none;
+    }
+
+    .hierarchical-dropdown-content {
+      max-height: 500px;
+      width: 100%;
+      min-width: 600px;
+    }
+
+    .geography-item {
+      margin: 8px 0;
+    }
+
+    .geography-header {
+      background: linear-gradient(135deg, #007bff, #0056b3);
+      color: white;
+      padding: 12px 20px;
+      margin: 0 12px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 1em;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+    }
+    
+    .geography-header.green {
+        background: linear-gradient(135deg, #28a745, #218838);
+        box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+    }
+    .geography-header.orange {
+        background: linear-gradient(135deg, #fd7e14, #e66a00);
+        box-shadow: 0 2px 8px rgba(253, 126, 20, 0.3);
+    }
+    .geography-header.red {
+        background: linear-gradient(135deg, #dc3545, #c82333);
+        box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+    }
+
+    .geography-header:hover {
+      transform: translateY(-1px);
+    }
+
+    .geography-regions {
+      display: none;
+      padding-left: 20px;
+      margin-top: 8px;
+    }
+
+    .geography-regions.active {
+      display: block;
+    }
+
+    .region-item {
+      margin: 6px 0;
+    }
+
+    .region-header {
+      background: linear-gradient(135deg, #6c757d, #495057);
+      color: white;
+      padding: 10px 16px;
+      margin: 0 8px;
+      border-radius: 6px;
+      font-weight: 500;
+      font-size: 0.95em;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 6px rgba(108, 117, 125, 0.3);
+    }
+
+    .region-header:hover {
+      background: linear-gradient(135deg, #495057, #343a40);
+      transform: translateY(-1px);
+      box-shadow: 0 3px 10px rgba(108, 117, 125, 0.4);
+    }
+
+    .region-services {
+      display: none;
+      padding-left: 16px;
+      margin-top: 6px;
+    }
+
+    .region-services.active {
+      display: block;
+    }
+    
+    .group-header {
+      font-weight: 700;
+      font-size: 0.9em;
+      color: #343a40;
+      background-color: #e9ecef;
+      padding: 8px 16px;
+      margin: 12px 8px 4px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .service-item {
+      color: #333;
+      padding: 8px 16px;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 4px 8px;
+      border-radius: 6px;
+      background-color: #f8f9fa;
+      font-size: 0.9em;
+      transition: all 0.2s ease;
+      border-left: 3px solid transparent;
+    }
+
+    .service-item:hover {
+      background-color: #e9ecef;
+      transform: translateX(4px);
+    }
+    
+    .service-item.status-red {
+      background-color: #fff5f5;
+      border-left-color: #dc3545;
+    }
+    .service-item.status-red:hover {
+      background-color: #ffe6e6;
+    }
+    .service-item.status-orange {
+      background-color: #fff9f2;
+      border-left-color: #fd7e14;
+    }
+    .service-item.status-orange:hover {
+      background-color: #fff0e0;
+    }
+    .service-item.status-green:hover {
+      border-left-color: #28a745;
+    }
+
+    .region-status {
+      font-size: 0.8em;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .region-status.green {
+      background-color: #d4edda;
+      color: #155724;
+    }
+
+    .region-status.orange {
+      background-color: #fff3cd;
+      color: #856404;
+    }
+
+    .region-status.red {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+
+    .dropdown:hover .dropdown-content,
+    .dropdown:focus-within .dropdown-content {
+      display: block;
+    }
+
+    .dropdown-content a {
+      color: #222;
+      padding: 10px 20px;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+      border-radius: 8px;
+      background-color: #f7f7f7;
+      font-size: 0.95em;
+      transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+    }
+
+    .dropdown-content a:hover {
+      background-color: #e0e0e0;
+      color: #000;
+    }
+
+    .dot {
+      height: 12px;
+      width: 12px;
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 3px rgba(0,0,0,0.1);
+      flex-shrink: 0;
+    }
+
+    .dot-green {
+      background-color: #28a745;
+    }
+    .dot-orange {
+      background-color: #fd7e14;
+    }
+    .dot-red {
+      background-color: #dc3545;
+    }
+
+    .status-detail {
+      font-size: 0.88em;
+      color: #666;
+      margin-left: 6px;
+      font-style: italic;
+      user-select: text;
+    }
+
+    .search-box {
+      padding: 10px 14px;
+      margin: 10px 20px;
+      width: calc(100% - 56px);
+      border-radius: 8px;
+      border: 1.5px solid #bbb;
+      font-size: 1em;
+      box-sizing: border-box;
+      transition: border-color 0.3s ease;
+    }
+    .search-box:focus {
+      border-color: #007bff;
+      outline: none;
+    }
+
+    .expand-arrow {
+      transition: transform 0.3s ease;
+      font-size: 0.8em;
+    }
+
+    .expand-arrow.rotated {
+      transform: rotate(180deg);
+    }
+
+    /* CHATBOT STYLES */
+    .chatbot-trigger {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      width: 60px;
+      height: 60px;
+      background: linear-gradient(135deg, #007bff, #0056b3);
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(0, 123, 255, 0.4);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      font-size: 24px;
+      color: white;
+    }
+
+    .chatbot-trigger:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(0, 123, 255, 0.6);
+    }
+
+    .chatbot-trigger.active {
+      background: linear-gradient(135deg, #dc3545, #c82333);
+    }
+
+    .chatbot-modal {
+      position: fixed;
+      bottom: 100px;
+      right: 30px;
+      width: 400px;
+      height: 500px;
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transform: translateY(20px);
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .chatbot-modal.open {
+      transform: translateY(0);
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .chatbot-header {
+      background: linear-gradient(135deg, #007bff, #0056b3);
+      color: white;
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+    }
+
+    .chatbot-close {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      transition: background-color 0.2s ease;
+    }
+
+    .chatbot-close:hover {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .chat-messages {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      background: #f8f9fa;
+    }
+
+    .message {
+      max-width: 80%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      word-wrap: break-word;
+      line-height: 1.4;
+      font-size: 14px;
+    }
+
+    .message.user {
+      background: #007bff;
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+
+    .message.assistant {
+      background: white;
+      color: #333;
+      align-self: flex-start;
+      border: 1px solid #e9ecef;
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .message.typing {
+      background: white;
+      color: #666;
+      align-self: flex-start;
+      border: 1px solid #e9ecef;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .typing-indicator {
+      display: flex;
+      gap: 4px;
+    }
+
+    .typing-dot {
+      width: 6px;
+      height: 6px;
+      background-color: #007bff;
+      border-radius: 50%;
+      animation: typing 1.4s infinite ease-in-out;
+    }
+
+    .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+    .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+    @keyframes typing {
+      0%, 80%, 100% {
+        transform: scale(0.8);
+        opacity: 0.5;
+      }
+      40% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    .chat-input-container {
+      padding: 20px;
+      background: white;
+      border-top: 1px solid #e9ecef;
+      display: flex;
+      gap: 10px;
+    }
+
+    .chat-input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 2px solid #e9ecef;
+      border-radius: 25px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.3s ease;
+    }
+
+    .chat-input:focus {
+      border-color: #007bff;
+    }
+
+    .chat-send {
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 45px;
+      height: 45px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.3s ease;
+      font-size: 18px;
+    }
+
+    .chat-send:hover:not(:disabled) {
+      background: #0056b3;
+    }
+
+    .chat-send:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+    }
+
+    .welcome-message {
+      background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+      border: 1px solid #2196f3;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 10px;
+      font-size: 14px;
+      color: #1565c0;
+      align-self: flex-start;
+      max-width: 95%;
+    }
+
+    .welcome-suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .suggestion-chip {
+      background: white;
+      border: 1px solid #007bff;
+      color: #007bff;
+      padding: 6px 12px;
+      border-radius: 15px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .suggestion-chip:hover {
+      background: #007bff;
+      color: white;
+    }
+
+    .dropdown-content::-webkit-scrollbar,
+    .hierarchical-dropdown-content::-webkit-scrollbar,
+    .chat-messages::-webkit-scrollbar {
+      width: 10px;
+    }
+    .dropdown-content::-webkit-scrollbar-track,
+    .hierarchical-dropdown-content::-webkit-scrollbar-track,
+    .chat-messages::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 10px;
+    }
+    .dropdown-content::-webkit-scrollbar-thumb,
+    .hierarchical-dropdown-content::-webkit-scrollbar-thumb,
+    .chat-messages::-webkit-scrollbar-thumb {
+      background: #ccc;
+      border-radius: 10px;
+    }
+    .dropdown-content::-webkit-scrollbar-thumb:hover,
+    .hierarchical-dropdown-content::-webkit-scrollbar-thumb:hover,
+    .chat-messages::-webkit-scrollbar-thumb:hover {
+      background: #999;
+    }
+
+    @media (max-width: 900px) {
+      .status-row {
+        max-width: 100%;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px;
+      }
+      .label {
+        width: 100%;
+        text-align: center;
+        margin-right: 0;
+        margin-bottom: 6px;
+      }
+      .status-box {
+        width: 100%;
+      }
+      .hierarchical-dropdown-content {
+        min-width: 100%;
+      }
+      
+      .chatbot-modal {
+        width: calc(100vw - 40px);
+        height: 70vh;
+        right: 20px;
+        bottom: 90px;
+      }
+      
+      .chatbot-trigger {
+        bottom: 20px;
+        right: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Service Status</h1>
+  
+  <!-- AI Chatbot Trigger Button -->
+  <button class="chatbot-trigger" id="chatbot-trigger" onclick="toggleChatbot()">
+    <span id="chatbot-icon">💬</span>
+  </button>
+
+  <!-- AI Chatbot Modal -->
+  <div class="chatbot-modal" id="chatbot-modal">
+    <div class="chatbot-header">
+      <h3>Status Assistant</h3>
+      <button class="chatbot-close" onclick="toggleChatbot()">×</button>
+    </div>
+    
+    <div class="chat-messages" id="chat-messages">
+      <div class="welcome-message">
+        Hi! I'm your Status Assistant. I can help you check the status of any service on this dashboard.
+        <div class="welcome-suggestions">
+          <span class="suggestion-chip" onclick="askQuestion('Is GitHub down?')">Is GitHub down?</span>
+          <span class="suggestion-chip" onclick="askQuestion('What services have issues?')">What has issues?</span>
+          <span class="suggestion-chip" onclick="askQuestion('Show me AWS status')">AWS status</span>
+          <span class="suggestion-chip" onclick="askQuestion('Overall system health?')">System health</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="chat-input-container">
+      <input 
+        type="text" 
+        class="chat-input" 
+        id="chat-input" 
+        placeholder="Ask about any service status..."
+        onkeypress="handleKeyPress(event)"
+      >
+      <button class="chat-send" id="send-button" onclick="sendMessage()">➤</button>
+    </div>
+  </div>
+
+  <div class="status-container">
+
+    <!-- GitHub -->
+    <div class="status-row">
+      <div class="label">GitHub:</div>
+      <div class="status-box">
+        <div class="dropdown">
+          <button class="dropdown-button {{ status_colors.github }}">
+            {{ details.github }} <span>▼</span>
+          </button>
+          <div class="dropdown-content" tabindex="0">
+            {% for name, info in components.github.items() %}
+              <a href="https://www.githubstatus.com/" target="_blank" rel="noopener noreferrer">
+                <span class="dot {{ 'dot-green' if info.status == 'operational' else 'dot-red' }}"></span>
+                {{ name }}
+                {% if info.status != 'operational' %}
+                  <span class="status-detail">({{ info.severity | capitalize }})</span>
+                {% endif %}
+              </a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Azure with Hierarchical Dropdown -->
+    <div class="status-row">
+      <div class="label">Azure:</div>
+      <div class="status-box">
+        <div class="dropdown">
+          <button class="dropdown-button {{ status_colors.azure }}">
+            {{ details.azure }} <span>▼</span>
+          </button>
+          <div class="dropdown-content hierarchical-dropdown-content" tabindex="0">
+            {% for geography, geography_data in components.azure.items() %}
+              {% set geo_id = 'azure-' + geography | lower | replace(' ', '-') | replace('(', '') | replace(')', '') %}
+              <div class="geography-item">
+                <div class="geography-header {{ geography_data._geography_stats.status_color }}" onclick="toggleGeography('{{ geo_id }}')">
+                  <span>{{ geography }}</span>
+                  <span class="expand-arrow" id="arrow-{{ geo_id }}">▼</span>
+                </div>
+                <div class="geography-regions" id="regions-{{ geo_id }}">
+                  {% for region, groups in geography_data.regions.items() %}
+                    {% if region != '_region_stats' %}
+                      {% set region_id = geo_id + '-' + region | lower | replace(' ', '-') | replace('.', '') %}
+                      <div class="region-item">
+                        <div class="region-header" onclick="toggleRegion('{{ region_id }}')">
+                          <span>{{ region }}</span>
+                          <div style="display: flex; align-items: center; gap: 8px;">
+                            {% if groups._region_stats %}
+                              <span class="region-status {{ groups._region_stats.status_color }}">
+                                {{ groups._region_stats.green_service_count }}/{{ groups._region_stats.total_service_count }} Available
+                              </span>
+                            {% endif %}
+                            <span class="expand-arrow" id="arrow-{{ region_id }}">▼</span>
+                          </div>
+                        </div>
+                        <div class="region-services" id="services-{{ region_id }}">
+                          {% for group_name, services_in_group in groups.items() %}
+                            {% if group_name != '_region_stats' %}
+                              <div class="group-header">{{ group_name }}</div>
+                              {% for service_name, service_info in services_in_group.items() %}
+                                <div class="service-item status-{{ service_info.status_color }}">
+                                  <span class="dot dot-{{ service_info.status_color }}"></span>
+                                  <span>{{ service_name }}</span>
+                                  {% if service_info.status_color == 'red' and service_info.severity %}
+                                    <span class="status-detail">({{ service_info.severity | capitalize }})</span>
+                                  {% elif service_info.status_color == 'orange' %}
+                                    <span class="status-detail">(N/A)</span>
+                                  {% endif %}
+                                </div>
+                              {% endfor %}
+                            {% endif %}
+                          {% endfor %}
+                        </div>
+                      </div>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AWS with Hierarchical Dropdown -->
+    <div class="status-row">
+      <div class="label">AWS:</div>
+      <div class="status-box">
+        <div class="dropdown">
+          <button class="dropdown-button {{ status_colors.aws }}">
+            {{ details.aws }} <span>▼</span>
+          </button>
+          <div class="dropdown-content hierarchical-dropdown-content" tabindex="0">
+            {% for geography, geography_data in components.aws.items() %}
+              {% set geo_id = 'aws-' + geography | lower | replace(' ', '-') | replace('.', '') %}
+              <div class="geography-item">
+                <div class="geography-header {{ geography_data._geography_stats.status_color }}" onclick="toggleGeography('{{ geo_id }}')">
+                  <span>{{ geography }}</span>
+                  <span class="expand-arrow" id="arrow-{{ geo_id }}">▼</span>
+                </div>
+                <div class="geography-regions" id="regions-{{ geo_id }}">
+                  {% for region, groups in geography_data.regions.items() %}
+                    {% if region != '_region_stats' %}
+                      {% set region_id = geo_id + '-' + region | lower | replace(' ', '-') | replace('.', '') %}
+                      <div class="region-item">
+                        <div class="region-header" onclick="toggleRegion('{{ region_id }}')">
+                          <span>{{ region }}</span>
+                          <div style="display: flex; align-items: center; gap: 8px;">
+                            {% if groups._region_stats %}
+                              <span class="region-status {{ groups._region_stats.status_color }}">
+                                {{ groups._region_stats.green_service_count }}/{{ groups._region_stats.total_service_count }} Available
+                              </span>
+                            {% endif %}
+                            <span class="expand-arrow" id="arrow-{{ region_id }}">▼</span>
+                          </div>
+                        </div>
+                        <div class="region-services" id="services-{{ region_id }}">
+                          {% for group_name, services_in_group in groups.items() %}
+                            {% if group_name != '_region_stats' %}
+                              <div class="group-header">{{ group_name }}</div>
+                              {% for service_name, service_info in services_in_group.items() %}
+                                <div class="service-item status-{{ service_info.status_color }}">
+                                  <span class="dot dot-{{ service_info.status_color }}"></span>
+                                  <span>{{ service_name }}</span>
+                                  {% if service_info.status_color == 'red' and service_info.severity %}
+                                    <span class="status-detail">({{ service_info.severity | capitalize }})</span>
+                                  {% endif %}
+                                </div>
+                              {% endfor %}
+                            {% endif %}
+                          {% endfor %}
+                        </div>
+                      </div>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Datadog -->
+    <div class="status-row">
+        <div class="label">Datadog:</div>
+        <div class="status-box">
+            <div class="dropdown">
+                <button class="dropdown-button {{ status_colors.datadog }}">
+                    {{ details.datadog }} <span>▼</span>
+                </button>
+                <div class="dropdown-content" tabindex="0">
+                    {% for region, info in components.datadog.items() %}
+                    <a href="https://status.datadoghq.com/" target="_blank" rel="noopener noreferrer">
+                        <span class="dot {{ 'dot-green' if info.status == 'operational' else 'dot-red' }}"></span>
+                        {{ region }}
+                        {% if info.status != 'operational' %}
+                        <span class="status-detail">({{ info.severity | capitalize }})</span>
+                        {% endif %}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Jira -->
+    <div class="status-row">
+        <div class="label">Jira:</div>
+        <div class="status-box">
+            <div class="dropdown">
+                <button class="dropdown-button {{ status_colors.jira }}">
+                    {{ details.jira }} <span>▼</span>
+                </button>
+                <div class="dropdown-content" tabindex="0">
+                    {% for name, info in components.jira.items() %}
+                    <a href="https://jira-software.status.atlassian.com/" target="_blank" rel="noopener noreferrer">
+                        <span class="dot {{ 'dot-green' if info.status == 'operational' else 'dot-red' }}"></span>
+                        {{ name }}
+                        {% if info.status != 'operational' %}
+                        <span class="status-detail">({{ info.severity | replace('_', ' ') | capitalize }})</span>
+                        {% endif %}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Jira Service Management -->
+    <div class="status-row">
+        <div class="label">JSM:</div>
+        <div class="status-box">
+            <div class="dropdown">
+                <button class="dropdown-button {{ status_colors.jsm }}">
+                    {{ details.jsm }} <span>▼</span>
+                </button>
+                <div class="dropdown-content" tabindex="0">
+                    {% for name, info in components.jsm.items() %}
+                    <a href="https://jira-service-management.status.atlassian.com/" target="_blank" rel="noopener noreferrer">
+                        <span class="dot {{ 'dot-green' if info.status == 'operational' else 'dot-red' }}"></span>
+                        {{ name }}
+                        {% if info.status != 'operational' %}
+                        <span class="status-detail">({{ info.severity | capitalize }})</span>
+                        {% endif %}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prisma -->
+    <div class="status-row">
+        <div class="label">Prisma:</div>
+        <div class="status-box">
+            <div class="dropdown">
+                <button class="dropdown-button {{ status_colors.prisma }}">
+                    {{ details.prisma }} <span>▼</span>
+                </button>
+                <div class="dropdown-content" tabindex="0">
+                    {% for name, info in components.prisma.items() %}
+                    <a href="https://www.prisma-status.com/" target="_blank" rel="noopener noreferrer">
+                        <span class="dot {{ 'dot-green' if info.status == 'operational' else 'dot-red' }}"></span>
+                        {{ name }}
+                        {% if info.status != 'operational' %}
+                        <span class="status-detail">({{ info.severity | capitalize }})</span>
+                        {% endif %}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grafana -->
+    <div class="status-row">
+        <div class="label">Grafana:</div>
+        <div class="status-box">
+            <div class="dropdown">
+                <button class="dropdown-button {{ status_colors.grafana }}">
+                    {{ details.grafana }} <span>▼</span>
+                </button>
+                <div class="dropdown-content" tabindex="0">
+                    <input type="text" class="search-box" placeholder="Search components..." onkeyup="filterGrafana(this)" aria-label="Search Grafana components" />
+                    {% for comp in components.grafana %}
+                    <a href="https://status.grafana.com/" target="_blank" rel="noopener noreferrer">
+                        <span class="dot {{ 'dot-green' if comp.status == 'operational' else 'dot-red' }}"></span>
+                        {{ comp.name }}
+                        {% if comp.status != 'operational' %}
+                        <span class="status-detail">({{ comp.severity | capitalize }})</span>
+                        {% endif %}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Okta -->
+    <div class="status-row">
+        <div class="label">Okta:</div>
+        <div class="status-box">
+            <div class="dropdown">
+                <button class="dropdown-button {{ status_colors.okta }}">
+                    {{ details.okta }} <span>▼</span>
+                </button>
+                <div class="dropdown-content" tabindex="0">
+                    {% if components.okta %}
+                    {% for name, info in components.okta.items() %}
+                    <a href="https://trust.okta.com/" target="_blank" rel="noopener noreferrer">
+                        <span class="dot {{ 'dot-green' if info.status == 'operational' else 'dot-red' }}"></span>
+                        {{ name }}
+                        {% if info.status != 'operational' %}
+                        <span class="status-detail">({{ info.severity | capitalize }})</span>
+                        {% endif %}
+                    </a>
+                    {% endfor %}
+                    {% else %}
+                    <a><span class="dot dot-green"></span> No current incidents</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cleverbridge -->
+    <div class="status-row">
+        <div class="label">Cleverbridge:</div>
+        <div class="status-box">
+            <div class="dropdown">
+                <button class="dropdown-button {{ status_colors.cleverbridge }}">
+                    {{ details.cleverbridge }} <span>▼</span>
+                </button>
+                <div class="dropdown-content" tabindex="0">
+                    {% if components.cleverbridge %}
+                    {% for name, info in components.cleverbridge.items() %}
+                    <a href="https://status.cleverbridge.com/" target="_blank" rel="noopener noreferrer">
+                        <span class="dot {{ 'dot-green' if info.status == 'operational' else 'dot-red' }}"></span>
+                        {{ name }}
+                        {% if info.status != 'operational' %}
+                        <span class="status-detail">({{ info.severity | capitalize }})</span>
+                        {% endif %}
+                    </a>
+                    {% endfor %}
+                    {% else %}
+                    <a><span class="dot dot-green"></span> No current incidents</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Existing functions for dropdowns
+    function toggleGeography(geographyId) {
+      const regionsDiv = document.getElementById(`regions-${geographyId}`);
+      const arrow = document.getElementById(`arrow-${geographyId}`);
+      const isActive = regionsDiv.classList.contains('active');
+
+      document.querySelectorAll('.geography-regions').forEach(div => {
+        div.classList.remove('active');
+      });
+      document.querySelectorAll('.geography-header .expand-arrow').forEach(arr => {
+        arr.classList.remove('rotated');
+      });
+      
+      if (!isActive) {
+        regionsDiv.classList.add('active');
+        arrow.classList.add('rotated');
+      }
+    }
+
+    function toggleRegion(regionId) {
+      const servicesDiv = document.getElementById(`services-${regionId}`);
+      const arrow = document.getElementById(`arrow-${regionId}`);
+      const isActive = servicesDiv.classList.contains('active');
+      
+      const parentGeography = servicesDiv.closest('.geography-regions');
+
+      parentGeography.querySelectorAll('.region-services').forEach(div => {
+        if (div.id !== `services-${regionId}`) {
+            div.classList.remove('active');
+        }
+      });
+      parentGeography.querySelectorAll('.region-header .expand-arrow').forEach(arr => {
+        if (arr.id !== `arrow-${regionId}`) {
+            arr.classList.remove('rotated');
+        }
+      });
+
+      if (isActive) {
+        servicesDiv.classList.remove('active');
+        arrow.classList.remove('rotated');
+      } else {
+        servicesDiv.classList.add('active');
+        arrow.classList.add('rotated');
+      }
+    }
+
+    function filterGrafana(input) {
+      const filter = input.value.toLowerCase();
+      const links = input.parentElement.querySelectorAll('a');
+      links.forEach(link => {
+        const text = link.textContent.toLowerCase();
+        link.style.display = text.includes(filter) ? 'flex' : 'none';
+      });
+    }
+
+    // CHATBOT JAVASCRIPT
+    let chatbotOpen = false;
+
+    function toggleChatbot() {
+      const modal = document.getElementById('chatbot-modal');
+      const trigger = document.getElementById('chatbot-trigger');
+      const icon = document.getElementById('chatbot-icon');
+      
+      chatbotOpen = !chatbotOpen;
+      
+      if (chatbotOpen) {
+        modal.classList.add('open');
+        trigger.classList.add('active');
+        icon.textContent = '×';
+        document.getElementById('chat-input').focus();
+      } else {
+        modal.classList.remove('open');
+        trigger.classList.remove('active');
+        icon.textContent = '💬';
+      }
+    }
+
+    function addMessage(content, isUser = false, isTyping = false) {
+      const messagesContainer = document.getElementById('chat-messages');
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${isUser ? 'user' : isTyping ? 'typing' : 'assistant'}`;
+      
+      if (isTyping) {
+        messageDiv.innerHTML = `
+          <span>AI is thinking...</span>
+          <div class="typing-indicator">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+          </div>
+        `;
+      } else {
+        messageDiv.textContent = content;
+      }
+      
+      messagesContainer.appendChild(messageDiv);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      
+      return messageDiv;
+    }
+
+    function removeMessage(messageElement) {
+      if (messageElement && messageElement.parentNode) {
+        messageElement.parentNode.removeChild(messageElement);
+      }
+    }
+
+    async function sendMessage(message = null) {
+      const input = document.getElementById('chat-input');
+      const sendButton = document.getElementById('send-button');
+      
+      const userMessage = message || input.value.trim();
+      if (!userMessage) return;
+
+      // Add user message
+      addMessage(userMessage, true);
+      
+      // Clear input and disable send button
+      input.value = '';
+      sendButton.disabled = true;
+      
+      // Show typing indicator
+      const typingMessage = addMessage('', false, true);
+      
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ message: userMessage })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        // Remove typing indicator
+        removeMessage(typingMessage);
+        
+        // Add AI response
+        addMessage(data.response, false);
+        
+      } catch (error) {
+        console.error('Error:', error);
+        
+        // Remove typing indicator
+        removeMessage(typingMessage);
+        
+        // Add error message
+        addMessage('Sorry, I encountered an error while processing your request. Please try again.', false);
+      }
+      
+      // Re-enable send button
+      sendButton.disabled = false;
+      input.focus();
+    }
+
+    function askQuestion(question) {
+      sendMessage(question);
+    }
+
+    function handleKeyPress(event) {
+      if (event.key === 'Enter') {
+        sendMessage();
+      }
+    }
+
+    // Close chatbot when clicking outside
+    document.addEventListener('click', function(event) {
+      const modal = document.getElementById('chatbot-modal');
+      const trigger = document.getElementById('chatbot-trigger');
+      
+      if (chatbotOpen && !modal.contains(event.target) && !trigger.contains(event.target)) {
+        toggleChatbot();
+      }
+    });
+
+    // Auto-refresh page every 30 seconds (but not when chatbot is open)
+    setInterval(function () {
+      if (!chatbotOpen) {
+        window.location.reload();
+      }
+    }, 300000);
+  </script>
+</body>
+</html>
