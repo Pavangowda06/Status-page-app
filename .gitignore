@@ -1,0 +1,20 @@
+# OpenAI API Configuration
+GEMINI_API_KEY=AIzaSyC0DvGE-VFCzd8Izvu0BpToaTScA5j7xQ0
+
+# Optional: Set log level for debugging
+LOG_LEVEL=INFO
+
+SLACK_WEBHOOK_URL="https://hooks.slack.com/services/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"
+SLACK_CHANNEL=#status-alerts
+SLACK_USERNAME=StatusBot
+SLACK_ICON_EMOJI=:warning:
+
+# Monitoring configuration
+MONITORING_INTERVAL=180          # 5 minutes
+NOTIFICATION_COOLDOWN=600        # 15 minutes
+MAX_NOTIFICATIONS_PER_HOUR=20    # Rate limit
+
+MONITORING_INTERVAL=180
+NOTIFICATION_COOLDOWN=600
+CHANGE_CONFIRMATION_CYCLES=2
+
