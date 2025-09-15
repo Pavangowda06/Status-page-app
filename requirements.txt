@@ -1,19 +1,14 @@
-fastapi
-uvicorn
-uvicorn[standard]
-gunicorn
-httpx
-jinja2
-python -m uvicorn main:app --reload
+# Packages for your main FastAPI app
 fastapi==0.104.1
+gunicorn
 uvicorn[standard]==0.24.0
+httpx==0.25.2
 jinja2==3.1.2
 python-multipart==0.0.6
-httpx==0.25.2
 google-generativeai==0.3.0
 pydantic==2.4.2
 python-dotenv==1.0.0
+
+# Packages required for your scrapers
 beautifulsoup4
 lxml
-
-#python -m uvicorn main3:app --reload
