@@ -17,6 +17,7 @@ from contextlib import asynccontextmanager
 import hashlib
 import logging
 import sys
+from fastapi.staticfiles import StaticFiles
 
 # Load environment variables
 load_dotenv()
@@ -73,6 +74,7 @@ async def lifespan(app: FastAPI):
     logger.info("Enhanced monitoring system stopped")
 
 app = FastAPI(lifespan=lifespan)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 app.add_middleware(
@@ -905,6 +907,7 @@ async def get_current_status_data():
         details["grafana"] = calculate_status_label(non_operational_grafana)
         components["grafana"] = grafana_components
         logger.info(f"Grafana status: {details['grafana']} ({non_operational_grafana} components non-operational)")
+        
         # Enhanced Okta processing
         okta_incidents = {}
         try:
@@ -951,11 +954,14 @@ async def get_current_status_data():
             logger.info(f"Okta incidents found: {len(okta_incidents)}")
         except Exception as e:
             logger.error(f"Error fetching Okta status: {e}")
-            okta_incidents = {}
+            okta_incidents = {"Connection Error": {"status": "error", "severity": "critical", "published": "N/A", "description": f"Failed to fetch status: {str(e)[:100]}"}}
 
-        non_operational_okta = len(okta_incidents)
+        if not okta_incidents:
+            okta_incidents = {"All Systems": {"status": "operational", "severity": None, "published": "N/A", "description": "No recent incidents reported"}}
+
+        non_operational_okta = sum(1 for incident in okta_incidents.values() if normalize_status(incident.get("status", "")) != "operational")
         status_colors["okta"] = calculate_status_color(non_operational_okta)
-        details["okta"] = "OPERATIONAL" if non_operational_okta == 0 else f"INCIDENTS ({non_operational_okta})"
+        details["okta"] = "OPERATIONAL" if non_operational_okta == 0 else f"INCIDENTS ({len(okta_incidents)})"
         components["okta"] = okta_incidents
         logger.info(f"Okta status: {details['okta']}")
 
@@ -998,11 +1004,14 @@ async def get_current_status_data():
             logger.info(f"Cleverbridge incidents found: {len(cleverbridge_incidents)}")
         except Exception as e:
             logger.error(f"Error fetching Cleverbridge status: {e}")
-            cleverbridge_incidents = {}
+            cleverbridge_incidents = {"Connection Error": {"status": "error", "severity": "critical", "published": "N/A", "description": f"Failed to fetch status: {str(e)[:100]}"}}
 
-        non_operational_cb = len(cleverbridge_incidents)
+        if not cleverbridge_incidents:
+            cleverbridge_incidents = {"All Systems": {"status": "operational", "severity": None, "published": "N/A", "description": "No recent incidents reported"}}
+
+        non_operational_cb = sum(1 for incident in cleverbridge_incidents.values() if normalize_status(incident.get("status", "")) != "operational")
         status_colors["cleverbridge"] = calculate_status_color(non_operational_cb)
-        details["cleverbridge"] = "OPERATIONAL" if non_operational_cb == 0 else f"INCIDENTS ({non_operational_cb})"
+        details["cleverbridge"] = "OPERATIONAL" if non_operational_cb == 0 else f"INCIDENTS ({len(cleverbridge_incidents)})"
         components["cleverbridge"] = cleverbridge_incidents
         logger.info(f"Cleverbridge status: {details['cleverbridge']}")
 
@@ -1096,6 +1105,7 @@ async def enhanced_continuous_monitoring():
             total_services = len(current_status.get("details", {}))
             operational_services = sum(1 for status in current_status.get("details", {}).values() 
                                      if normalize_status(status) == "operational")
+            # I have implemenetd a status page for github, azure, aws, datadog, jira, jsm, prisma, grafana, okta, cleverbridge along with chatbot and slack integeration to send alert message. But Now i want to chnage UI, PLease refer the screenshot for Ui Integrartion and inside the box make sure that instead of the components names their logos should be present. Make the ai to present where it look good. I think python program no need to be chnaged for this, remember have a special note on components dropdown. I need all the components dropdown. Implement the code and give me back fully implemented functional code.
             
             if notifications:
                 logger.info(f"✅ Monitoring cycle complete - {successful_notifications}/{len(notifications)} notifications sent successfully, {failed_notifications} failed")
