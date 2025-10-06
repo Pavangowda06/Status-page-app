@@ -3506,3 +3506,109 @@
 2025-09-17 12:02:21,842 - main - INFO - Monitoring task cancelled cleanly
 2025-09-17 12:02:22,204 - main - INFO - Enhanced monitoring system stopped
 I have developed a status monitoring system that periodically checks the status of various services (like GitHub, azure, aws, jira, jsm, Datadog, prisma, grafana, okta, cleverbridge etc.) and along with this i have implemneted a AI chatbot which will give answers for my queries by connecting respective apis. If any components become non operational or operational it will send a alert message through slack. But now what i want is I want to change the UI Like how it looking in paint screenshot informed by my manager. Inside taht box instead of name i need their respective tools icon so it will goo enough, I will share the html file summerize it and remember everything and implement for my requirements. I think python code is not needed since it is only UI implementation. Please implement the complete code in single shot.Dont implement half - half code, Implement complete code.
+2025-10-06 14:06:33,519 - main - INFO - Gemini client initialized
+2025-10-06 14:06:33,525 - main - INFO - Global lock acquired by instance monitor_1759739793_18460
+2025-10-06 14:06:33,525 - main - INFO - Starting primary monitoring instance
+2025-10-06 14:06:33,525 - main - INFO - Monitoring task started successfully
+2025-10-06 14:06:33,525 - main - INFO - Starting enhanced monitoring every 180 seconds
+2025-10-06 14:06:33,526 - main - INFO - Slack notifications: Enabled
+2025-10-06 14:06:33,526 - main - INFO - Change confirmation cycles: 2
+2025-10-06 14:06:33,526 - main - INFO - Monitored services: github, datadog, jira, jsm, prisma, grafana, okta, cleverbridge, azure, aws
+2025-10-06 14:06:33,526 - main - INFO - Instance ID: monitor_1759739793_18460
+2025-10-06 14:06:33,573 - main - INFO - Previous state too old, starting fresh
+2025-10-06 14:06:33,576 - main - INFO - ==================================================
+2025-10-06 14:06:33,577 - main - INFO - Starting monitoring cycle (Instance: monitor_1759739793_18460)
+2025-10-06 14:06:33,577 - main - INFO - Starting status data collection...
+2025-10-06 14:06:33,594 - main - INFO - Azure status: OPERATIONAL
+2025-10-06 14:06:33,599 - main - INFO - AWS status: OPERATIONAL
+2025-10-06 14:06:34,463 - httpx - INFO - HTTP Request: GET https://www.githubstatus.com/api/v2/components.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:34,464 - main - INFO - GitHub components loaded: 10
+2025-10-06 14:06:34,464 - main - INFO - GitHub status: OPERATIONAL (0 non-operational)
+2025-10-06 14:06:35,065 - httpx - INFO - HTTP Request: GET https://status.datadoghq.eu/api/v2/status.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:35,641 - httpx - INFO - HTTP Request: GET https://status.datadoghq.com/api/v2/status.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:36,291 - httpx - INFO - HTTP Request: GET https://status.us3.datadoghq.com/api/v2/status.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:36,875 - httpx - INFO - HTTP Request: GET https://status.us5.datadoghq.com/api/v2/status.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:37,263 - main - INFO - Starting status data collection...
+2025-10-06 14:06:37,284 - main - INFO - Azure status: OPERATIONAL
+2025-10-06 14:06:37,291 - main - INFO - AWS status: OPERATIONAL
+2025-10-06 14:06:37,588 - httpx - INFO - HTTP Request: GET https://status.ap1.datadoghq.com/api/v2/status.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:38,106 - httpx - INFO - HTTP Request: GET https://www.githubstatus.com/api/v2/components.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:38,107 - main - INFO - GitHub components loaded: 10
+2025-10-06 14:06:38,107 - main - INFO - GitHub status: OPERATIONAL (0 non-operational)
+2025-10-06 14:06:38,238 - httpx - INFO - HTTP Request: GET https://status.ddog-gov.com/api/v2/status.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:38,740 - httpx - INFO - HTTP Request: GET https://status.datadoghq.eu/api/v2/status.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:38,916 - httpx - INFO - HTTP Request: GET https://status.ap2.datadoghq.com/api/v2/status.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:38,918 - main - INFO - Datadog status: OPERATIONAL (0 regions non-operational)
+2025-10-06 14:06:39,415 - httpx - INFO - HTTP Request: GET https://status.datadoghq.com/api/v2/status.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:39,449 - httpx - INFO - HTTP Request: GET https://jira-software.status.atlassian.com/api/v2/components.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:39,451 - main - INFO - Jira components loaded: 11
+2025-10-06 14:06:39,451 - main - INFO - Jira status: OPERATIONAL (0 components non-operational)
+2025-10-06 14:06:39,981 - httpx - INFO - HTTP Request: GET https://jira-service-management.status.atlassian.com/api/v2/components.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:39,984 - main - INFO - JSM components loaded: 10
+2025-10-06 14:06:39,985 - main - INFO - JSM status: OPERATIONAL (0 components non-operational)
+2025-10-06 14:06:40,105 - httpx - INFO - HTTP Request: GET https://status.us3.datadoghq.com/api/v2/status.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:40,571 - httpx - INFO - HTTP Request: GET https://www.prisma-status.com/api/v2/components.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:40,575 - main - INFO - Prisma components loaded: 5
+2025-10-06 14:06:40,576 - main - INFO - Prisma status: OPERATIONAL (0 components non-operational)
+2025-10-06 14:06:40,714 - httpx - INFO - HTTP Request: GET https://status.us5.datadoghq.com/api/v2/status.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:41,283 - httpx - INFO - HTTP Request: GET https://status.grafana.com/api/v2/components.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:41,301 - httpx - INFO - HTTP Request: GET https://status.ap1.datadoghq.com/api/v2/status.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:41,320 - main - INFO - Grafana components loaded: 511
+2025-10-06 14:06:41,321 - main - INFO - Grafana status: OPERATIONAL (0 components non-operational)
+2025-10-06 14:06:42,027 - httpx - INFO - HTTP Request: GET https://status.ddog-gov.com/api/v2/status.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:42,202 - httpx - INFO - HTTP Request: GET https://feeds.feedburner.com/OktaTrustRSS "HTTP/1.1 200 OK"
+2025-10-06 14:06:42,398 - main - INFO - Okta incidents found: 0
+2025-10-06 14:06:42,399 - main - INFO - Okta status: OPERATIONAL
+2025-10-06 14:06:42,622 - httpx - INFO - HTTP Request: GET https://status.ap2.datadoghq.com/api/v2/status.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:42,625 - main - INFO - Datadog status: OPERATIONAL (0 regions non-operational)
+2025-10-06 14:06:43,001 - httpx - INFO - HTTP Request: GET https://status.cleverbridge.com/history.rss "HTTP/1.1 200 OK"
+2025-10-06 14:06:43,025 - main - INFO - Cleverbridge incidents found: 0
+2025-10-06 14:06:43,026 - main - INFO - Cleverbridge status: OPERATIONAL
+2025-10-06 14:06:43,030 - main - INFO - Status data collection completed
+2025-10-06 14:06:43,031 - main - INFO - Initial status baseline established
+2025-10-06 14:06:43,032 - main - INFO -   github: OPERATIONAL
+2025-10-06 14:06:43,032 - main - INFO -   datadog: OPERATIONAL
+2025-10-06 14:06:43,033 - main - INFO -   jira: OPERATIONAL
+2025-10-06 14:06:43,035 - main - INFO -   jsm: OPERATIONAL
+2025-10-06 14:06:43,036 - main - INFO -   prisma: OPERATIONAL
+2025-10-06 14:06:43,037 - main - INFO -   grafana: OPERATIONAL
+2025-10-06 14:06:43,039 - main - INFO -   okta: OPERATIONAL
+2025-10-06 14:06:43,040 - main - INFO -   cleverbridge: OPERATIONAL
+2025-10-06 14:06:43,041 - main - INFO -   azure: OPERATIONAL
+2025-10-06 14:06:43,042 - main - INFO -   aws: OPERATIONAL
+2025-10-06 14:06:43,104 - httpx - INFO - HTTP Request: GET https://jira-software.status.atlassian.com/api/v2/components.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:43,109 - main - INFO - Jira components loaded: 11
+2025-10-06 14:06:43,110 - main - INFO - Jira status: OPERATIONAL (0 components non-operational)
+2025-10-06 14:06:43,640 - httpx - INFO - HTTP Request: GET https://jira-service-management.status.atlassian.com/api/v2/components.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:43,643 - main - INFO - JSM components loaded: 10
+2025-10-06 14:06:43,643 - main - INFO - JSM status: OPERATIONAL (0 components non-operational)
+2025-10-06 14:06:44,176 - httpx - INFO - HTTP Request: GET https://www.prisma-status.com/api/v2/components.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:44,178 - main - INFO - Prisma components loaded: 5
+2025-10-06 14:06:44,179 - main - INFO - Prisma status: OPERATIONAL (0 components non-operational)
+2025-10-06 14:06:44,850 - httpx - INFO - HTTP Request: GET https://status.grafana.com/api/v2/components.json "HTTP/1.1 200 OK"
+2025-10-06 14:06:44,869 - main - INFO - Grafana components loaded: 511
+2025-10-06 14:06:44,871 - main - INFO - Grafana status: OPERATIONAL (0 components non-operational)
+2025-10-06 14:06:45,691 - httpx - INFO - HTTP Request: GET https://feeds.feedburner.com/OktaTrustRSS "HTTP/1.1 200 OK"
+2025-10-06 14:06:45,880 - main - INFO - Okta incidents found: 0
+2025-10-06 14:06:45,881 - main - INFO - Okta status: OPERATIONAL
+2025-10-06 14:06:46,492 - httpx - INFO - HTTP Request: GET https://status.cleverbridge.com/history.rss "HTTP/1.1 200 OK"
+2025-10-06 14:06:46,497 - main - INFO - Cleverbridge incidents found: 0
+2025-10-06 14:06:46,497 - main - INFO - Cleverbridge status: OPERATIONAL
+2025-10-06 14:06:46,503 - main - INFO - Status data collection completed
+2025-10-06 14:09:26,467 - main - INFO - Monitoring task cancelled cleanly
+2025-10-06 14:09:26,597 - main - INFO - Enhanced monitoring system stopped
+2025-10-06 14:09:28,316 - main - INFO - Gemini client initialized
+2025-10-06 14:09:28,320 - main - INFO - Global lock acquired by instance monitor_1759739968_22396
+2025-10-06 14:09:28,320 - main - INFO - Starting primary monitoring instance
+2025-10-06 14:09:28,321 - main - INFO - Monitoring task started successfully
+2025-10-06 14:09:28,321 - main - INFO - Starting enhanced monitoring every 180 seconds
+2025-10-06 14:09:28,321 - main - INFO - Slack notifications: Enabled
+2025-10-06 14:09:28,321 - main - INFO - Change confirmation cycles: 2
+2025-10-06 14:09:28,321 - main - INFO - Monitored services: github, datadog, jira, jsm, prisma, grafana, okta, cleverbridge, azure, aws
+2025-10-06 14:09:28,321 - main - INFO - Instance ID: monitor_1759739968_22396
+2025-10-06 14:09:28,354 - main - INFO - Monitoring state loaded successfully (Previous instance: monitor_1759739793_18460)
+2025-10-06 14:09:28,355 - main - INFO - ==================================================
+2025-10-06 14:09:28,355 - main - INFO - Starting monitoring cycle (Instance: monitor_1759739968_22396)
+2025-10-06 14:09:28,355 - main - INFO - Starting status data collection...
+2025-10-06 14:09:28,370 - main - INFO - Azure status: OPERATIONAL
+2025-10-06 14:09:28,376 - main - INFO - AWS status: OPERATIONAL

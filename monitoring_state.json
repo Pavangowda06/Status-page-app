@@ -5,10 +5,10 @@
       "aws": "OPERATIONAL",
       "github": "OPERATIONAL",
       "datadog": "OPERATIONAL",
-      "jira": "MINOR ISSUE",
+      "jira": "OPERATIONAL",
       "jsm": "OPERATIONAL",
       "prisma": "OPERATIONAL",
-      "grafana": "MINOR ISSUE",
+      "grafana": "OPERATIONAL",
       "okta": "OPERATIONAL",
       "cleverbridge": "OPERATIONAL"
     },
@@ -17,10 +17,10 @@
       "aws": "green",
       "github": "green",
       "datadog": "green",
-      "jira": "orange",
+      "jira": "green",
       "jsm": "green",
       "prisma": "green",
-      "grafana": "orange",
+      "grafana": "green",
       "okta": "green",
       "cleverbridge": "green"
     },
@@ -127311,7 +127311,7 @@
         "Actions": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-09-10T14:02:41.317Z"
+          "updated_at": "2025-10-01T16:55:59.004Z"
         },
         "Packages": {
           "status": "operational",
@@ -127321,17 +127321,17 @@
         "Pages": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-06-17T20:03:36.357Z"
+          "updated_at": "2025-09-23T17:41:57.865Z"
         },
         "Codespaces": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-21T09:47:56.207Z"
+          "updated_at": "2025-09-17T17:55:39.293Z"
         },
         "Copilot": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-08-27T21:36:28.924Z"
+          "updated_at": "2025-10-03T03:47:27.948Z"
         }
       },
       "datadog": {
@@ -127339,159 +127339,159 @@
           "status": "operational",
           "severity": null,
           "description": "All Systems Operational",
-          "updated_at": "2025-09-17T06:30:52.852200"
+          "updated_at": "2025-10-06T08:36:35.066198"
         },
         "US1": {
           "status": "operational",
           "severity": null,
           "description": "All Systems Operational",
-          "updated_at": "2025-09-17T06:30:53.649645"
+          "updated_at": "2025-10-06T08:36:35.642182"
         },
         "US3": {
           "status": "operational",
           "severity": null,
           "description": "All Systems Operational",
-          "updated_at": "2025-09-17T06:30:54.276273"
+          "updated_at": "2025-10-06T08:36:36.293006"
         },
         "US5": {
           "status": "operational",
           "severity": null,
           "description": "All Systems Operational",
-          "updated_at": "2025-09-17T06:30:54.956535"
+          "updated_at": "2025-10-06T08:36:36.876593"
         },
         "AP1": {
           "status": "operational",
           "severity": null,
           "description": "All Systems Operational",
-          "updated_at": "2025-09-17T06:30:57.283983"
+          "updated_at": "2025-10-06T08:36:37.589878"
         },
         "GovCloud": {
           "status": "operational",
           "severity": null,
           "description": "All Systems Operational",
-          "updated_at": "2025-09-17T06:30:59.264970"
+          "updated_at": "2025-10-06T08:36:38.239972"
         },
         "AP2": {
           "status": "operational",
           "severity": null,
           "description": "All Systems Operational",
-          "updated_at": "2025-09-17T06:31:00.709399"
+          "updated_at": "2025-10-06T08:36:38.918583"
         }
       },
       "jira": {
         "Viewing content": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-09-15T06:40:39.700Z"
+          "updated_at": "2025-10-03T11:27:25.262Z"
         },
         "Create and edit": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-09-11T16:07:43.323Z"
+          "updated_at": "2025-09-22T06:55:46.688Z"
         },
         "Authentication and User Management": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-10T08:55:09.627Z"
+          "updated_at": "2025-09-22T06:55:46.705Z"
         },
         "Search": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-10T08:55:09.644Z"
+          "updated_at": "2025-09-22T06:55:46.721Z"
         },
         "Notifications": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-10T08:55:09.661Z"
+          "updated_at": "2025-09-22T06:55:46.737Z"
         },
         "Administration": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-08-05T04:19:03.783Z"
+          "updated_at": "2025-09-22T06:55:46.752Z"
         },
         "Marketplace": {
-          "status": "degraded_performance",
-          "severity": "degraded_performance",
-          "updated_at": "2025-09-16T09:51:48.619Z"
+          "status": "operational",
+          "severity": null,
+          "updated_at": "2025-09-22T06:55:46.766Z"
         },
         "Mobile": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-10T08:55:09.709Z"
+          "updated_at": "2025-09-22T06:55:46.781Z"
         },
         "Purchasing & Licensing": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-10T08:55:09.723Z"
+          "updated_at": "2025-09-22T06:55:46.796Z"
         },
         "Signup": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-10T08:55:09.738Z"
+          "updated_at": "2025-09-22T06:55:46.812Z"
         },
         "Automation for Jira": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-16T18:43:08.012Z"
+          "updated_at": "2025-09-22T06:55:46.828Z"
         }
       },
       "jsm": {
         "Jira Service Management Web": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-09-11T16:08:41.054Z"
+          "updated_at": "2025-09-22T06:55:45.836Z"
         },
         "Service Portal": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-30T09:45:21.214Z"
+          "updated_at": "2025-09-22T06:55:45.854Z"
         },
         "Opsgenie Incident Flow": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-30T09:45:57.732Z"
+          "updated_at": "2025-09-22T06:55:45.911Z"
         },
         "Opsgenie Alert Flow": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-30T09:46:07.160Z"
+          "updated_at": "2025-09-30T14:32:25.135Z"
         },
         "Jira Service Management Email Requests": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-30T09:46:29.621Z"
+          "updated_at": "2025-09-22T06:55:45.944Z"
         },
         "Authentication and User Management": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-08-07T21:57:13.264Z"
+          "updated_at": "2025-09-22T06:55:45.962Z"
         },
         "Purchasing & Licensing": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-30T09:46:45.365Z"
+          "updated_at": "2025-09-22T06:55:45.979Z"
         },
         "Signup": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-30T09:46:56.754Z"
+          "updated_at": "2025-09-22T06:55:45.997Z"
         },
         "Automation for Jira": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-30T09:46:45.054Z"
+          "updated_at": "2025-09-22T06:55:46.015Z"
         },
         "Assist": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-30T09:46:27.791Z"
+          "updated_at": "2025-09-22T06:55:46.034Z"
         }
       },
       "prisma": {
         "Prisma Accelerate": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-09-06T11:51:28.904Z"
+          "updated_at": "2025-10-02T16:11:58.143Z"
         },
         "Prisma Data Platform Console": {
           "status": "operational",
@@ -127506,7 +127506,7 @@
         "Prisma Postgres": {
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-09-10T10:25:05.060Z"
+          "updated_at": "2025-10-02T09:49:41.967Z"
         },
         "Prisma Studio": {
           "status": "operational",
@@ -127517,8 +127517,8 @@
       "grafana": [
         {
           "name": "Grafana Cloud: Hosted Grafana",
-          "status": "under_maintenance",
-          "severity": "under_maintenance",
+          "status": "operational",
+          "severity": null,
           "updated_at": "2025-02-27T15:08:09.726Z",
           "url": "https://status.grafana.com/components/y8nfqvv7w562"
         },
@@ -127547,7 +127547,7 @@
           "name": "AWS Australia - prod-ap-southeast-2",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:54.998Z",
+          "updated_at": "2025-09-24T13:20:53.802Z",
           "url": "https://status.grafana.com/components/wfc1hb7m917l"
         },
         {
@@ -127666,7 +127666,7 @@
           "name": "AWS Brazil - prod-sa-east-1",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:55.018Z",
+          "updated_at": "2025-09-24T13:20:53.824Z",
           "url": "https://status.grafana.com/components/9zgd4n4s874v"
         },
         {
@@ -127680,7 +127680,7 @@
           "name": "AWS Australia - prod-ap-southeast-2: Ingestion",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-22T13:43:02.081Z",
+          "updated_at": "2025-09-18T18:51:18.701Z",
           "url": "https://status.grafana.com/components/fm6ngm716ftw"
         },
         {
@@ -127778,7 +127778,7 @@
           "name": "AWS Canada - prod-ca-east-0",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:55.036Z",
+          "updated_at": "2025-09-24T13:20:53.859Z",
           "url": "https://status.grafana.com/components/zvfc1jlr92kg"
         },
         {
@@ -127820,7 +127820,7 @@
           "name": "AWS Australia - prod-ap-southeast-2: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:51:12.017Z",
+          "updated_at": "2025-10-02T08:39:36.217Z",
           "url": "https://status.grafana.com/components/tzt37d0skmyd"
         },
         {
@@ -127897,7 +127897,7 @@
           "name": "AWS Germany - prod-eu-west-2",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:55.054Z",
+          "updated_at": "2025-09-24T13:20:53.881Z",
           "url": "https://status.grafana.com/components/6wgslg1s3bzr"
         },
         {
@@ -127932,7 +127932,7 @@
           "name": "AWS Brazil - prod-sa-east-1: Ingestion",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-02-18T12:21:52.429Z",
+          "updated_at": "2025-09-18T18:51:18.719Z",
           "url": "https://status.grafana.com/components/pg6f8jh5jmw1"
         },
         {
@@ -128016,7 +128016,7 @@
           "name": "AWS Germany - prod-eu-west-4",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:55.077Z",
+          "updated_at": "2025-09-24T13:20:53.902Z",
           "url": "https://status.grafana.com/components/wdcnfc3drb8s"
         },
         {
@@ -128149,7 +128149,7 @@
           "name": "AWS Brazil - prod-sa-east-1: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-02-18T12:11:49.816Z",
+          "updated_at": "2025-10-02T08:39:36.239Z",
           "url": "https://status.grafana.com/components/3pxb2s9gd3qk"
         },
         {
@@ -128163,7 +128163,7 @@
           "name": "AWS India - prod-ap-south-1",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:55.093Z",
+          "updated_at": "2025-09-24T13:20:53.922Z",
           "url": "https://status.grafana.com/components/2vj35rbpdr7s"
         },
         {
@@ -128331,7 +128331,7 @@
           "name": "AWS Japan - prod-ap-northeast-0",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:55.112Z",
+          "updated_at": "2025-09-24T13:20:53.942Z",
           "url": "https://status.grafana.com/components/nrv6vyr5l7m8"
         },
         {
@@ -128471,7 +128471,7 @@
           "name": "AWS UAE - prod-me-central-1",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:55.131Z",
+          "updated_at": "2025-09-24T13:20:53.963Z",
           "url": "https://status.grafana.com/components/hl40gbs2zkn4"
         },
         {
@@ -128485,7 +128485,7 @@
           "name": "AWS Singapore - prod-ap-southeast-1",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:55.149Z",
+          "updated_at": "2025-09-24T13:20:53.988Z",
           "url": "https://status.grafana.com/components/y8p2jm7hpwy0"
         },
         {
@@ -128513,7 +128513,7 @@
           "name": "AWS Canada - prod-ca-east-0: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-02-18T12:11:50.030Z",
+          "updated_at": "2025-10-02T08:39:36.256Z",
           "url": "https://status.grafana.com/components/y2fvl0w81hnk"
         },
         {
@@ -128625,7 +128625,7 @@
           "name": "AWS Sweden - prod-eu-north-0",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:55.165Z",
+          "updated_at": "2025-09-24T13:20:54.009Z",
           "url": "https://status.grafana.com/components/tv6d4zqb6nz7"
         },
         {
@@ -128695,7 +128695,7 @@
           "name": "AWS UAE - prod-me-central-1: Ingestion",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-22T13:43:02.146Z",
+          "updated_at": "2025-09-18T18:51:18.736Z",
           "url": "https://status.grafana.com/components/n72tkbyzr423"
         },
         {
@@ -128709,7 +128709,7 @@
           "name": "AWS US East - prod-us-east-0",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-08-25T22:55:12.486Z",
+          "updated_at": "2025-09-24T13:20:54.032Z",
           "url": "https://status.grafana.com/components/hbqgpzmf8h9k"
         },
         {
@@ -128814,7 +128814,7 @@
           "name": "AWS US East - prod-us-east-2",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:55.200Z",
+          "updated_at": "2025-09-24T13:20:54.054Z",
           "url": "https://status.grafana.com/components/t0592d5sxhgh"
         },
         {
@@ -128835,7 +128835,7 @@
           "name": "Azure Netherlands - prod-eu-west-3",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-01-31T18:59:54.926Z",
+          "updated_at": "2025-09-29T16:00:21.397Z",
           "url": "https://status.grafana.com/components/7ctkztrq2y6h"
         },
         {
@@ -128856,7 +128856,7 @@
           "name": "AWS Germany - prod-eu-west-2: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-10T02:06:43.779Z",
+          "updated_at": "2025-10-02T08:39:36.271Z",
           "url": "https://status.grafana.com/components/kckd7qfk2gql"
         },
         {
@@ -128961,7 +128961,7 @@
           "name": "AWS US West - prod-us-west-0",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-09-15T18:17:51.322Z",
+          "updated_at": "2025-09-24T13:20:54.075Z",
           "url": "https://status.grafana.com/components/8wq97lhx59x7"
         },
         {
@@ -129038,7 +129038,7 @@
           "name": "Azure Netherlands - prod-eu-west-3",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:55.237Z",
+          "updated_at": "2025-09-24T13:20:54.100Z",
           "url": "https://status.grafana.com/components/1mnpb5g27m21"
         },
         {
@@ -129136,7 +129136,7 @@
           "name": "AWS Japan - prod-ap-northeast-0: Ingestion",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:47:48.579Z",
+          "updated_at": "2025-09-18T18:51:18.752Z",
           "url": "https://status.grafana.com/components/mcrkfm4my3ks"
         },
         {
@@ -129148,9 +129148,9 @@
         },
         {
           "name": "Azure US Central - us-central2",
-          "status": "under_maintenance",
-          "severity": "under_maintenance",
-          "updated_at": "2025-09-15T20:44:15.792Z",
+          "status": "operational",
+          "severity": null,
+          "updated_at": "2025-09-24T13:20:54.121Z",
           "url": "https://status.grafana.com/components/fs80tlfpb7kx"
         },
         {
@@ -129255,14 +129255,14 @@
           "name": "AWS UAE - prod-me-central-1: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:59:33.865Z",
+          "updated_at": "2025-10-02T08:39:36.287Z",
           "url": "https://status.grafana.com/components/2xrvqwtmgk1j"
         },
         {
           "name": "GCP Australia - prod-au-southeast-0",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:55.279Z",
+          "updated_at": "2025-09-24T13:20:54.142Z",
           "url": "https://status.grafana.com/components/sc8qqdx6j1h5"
         },
         {
@@ -129374,7 +129374,7 @@
           "name": "GCP Belgium - prod-eu-west-0",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-28T19:53:03.985Z",
+          "updated_at": "2025-09-24T13:20:54.163Z",
           "url": "https://status.grafana.com/components/c66zgq8xld33"
         },
         {
@@ -129493,7 +129493,7 @@
           "name": "GCP Brazil - prod-sa-east-0",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:55.313Z",
+          "updated_at": "2025-09-24T13:20:54.186Z",
           "url": "https://status.grafana.com/components/kw9wxv34yw80"
         },
         {
@@ -129619,7 +129619,7 @@
           "name": "GCP India - prod-ap-south-0",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:55.328Z",
+          "updated_at": "2025-09-24T13:20:54.207Z",
           "url": "https://status.grafana.com/components/bh5f9ggjnj60"
         },
         {
@@ -129738,7 +129738,7 @@
           "name": "GCP Singapore - prod-ap-southeast-0",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:55.344Z",
+          "updated_at": "2025-09-24T13:20:54.227Z",
           "url": "https://status.grafana.com/components/54tht9mpb5sk"
         },
         {
@@ -129815,7 +129815,7 @@
           "name": "GCP UK - prod-gb-south-0",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:55.361Z",
+          "updated_at": "2025-09-24T13:20:54.250Z",
           "url": "https://status.grafana.com/components/yt6pjkj14lvk"
         },
         {
@@ -129878,7 +129878,7 @@
           "name": "GCP US Central - prod-us-central-0",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-08-25T22:55:12.505Z",
+          "updated_at": "2025-09-24T21:06:23.372Z",
           "url": "https://status.grafana.com/components/qqj6ssvvsqmq"
         },
         {
@@ -129906,7 +129906,7 @@
           "name": "AWS Singapore - prod-ap-southeast-1: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:54:09.475Z",
+          "updated_at": "2025-10-02T08:39:36.304Z",
           "url": "https://status.grafana.com/components/qr8ttrr50lnd"
         },
         {
@@ -129927,7 +129927,7 @@
           "name": "GCP US Central - prod-us-central-0",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-06-12T21:51:41.135Z",
+          "updated_at": "2025-09-26T10:03:02.790Z",
           "url": "https://status.grafana.com/components/djjv8h5nh3jp"
         },
         {
@@ -129941,7 +129941,7 @@
           "name": "GCP US Central - prod-us-central-3",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-08-18T17:38:20.192Z",
+          "updated_at": "2025-09-24T13:20:54.297Z",
           "url": "https://status.grafana.com/components/m7cr9xxllhpn"
         },
         {
@@ -129962,7 +129962,7 @@
           "name": "Azure Netherlands - prod-eu-west-3: Querying",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:47:48.633Z",
+          "updated_at": "2025-10-02T15:04:13.587Z",
           "url": "https://status.grafana.com/components/xm2ns8nm3qgv"
         },
         {
@@ -130011,7 +130011,7 @@
           "name": "GCP US Central - prod-us-central-4",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-08-18T17:38:20.209Z",
+          "updated_at": "2025-09-24T13:20:54.323Z",
           "url": "https://status.grafana.com/components/jky8f03q6zfj"
         },
         {
@@ -130025,14 +130025,14 @@
           "name": "Azure Netherlands - prod-eu-west-3: Ingestion",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:47:48.639Z",
+          "updated_at": "2025-10-02T15:04:13.606Z",
           "url": "https://status.grafana.com/components/82s7r3tjyb6n"
         },
         {
           "name": "AWS Sweden - prod-eu-north-0: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:54:09.484Z",
+          "updated_at": "2025-10-02T08:39:36.319Z",
           "url": "https://status.grafana.com/components/4vcmfvslpghq"
         },
         {
@@ -130081,14 +130081,14 @@
           "name": "Azure US Central - us-central2: API",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-09-16T21:16:33.883Z",
+          "updated_at": "2025-09-19T09:25:29.694Z",
           "url": "https://status.grafana.com/components/bwz6jth8r6qk"
         },
         {
           "name": "GCP US East - prod-us-east-1",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-07-07T07:49:55.428Z",
+          "updated_at": "2025-09-24T13:20:54.346Z",
           "url": "https://status.grafana.com/components/2yn7w8rnphcp"
         },
         {
@@ -130158,7 +130158,7 @@
           "name": "Azure US Central - us-central2: Public Probes",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-05-06T21:32:42.801Z",
+          "updated_at": "2025-09-19T09:25:29.711Z",
           "url": "https://status.grafana.com/components/43fvknltd9m1"
         },
         {
@@ -130235,7 +130235,7 @@
           "name": "AWS US East - prod-us-east-0: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:54:09.503Z",
+          "updated_at": "2025-10-02T08:39:36.334Z",
           "url": "https://status.grafana.com/components/fgtp31zqpw8v"
         },
         {
@@ -130347,7 +130347,7 @@
           "name": "AWS US West - prod-us-west-0: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:54:09.519Z",
+          "updated_at": "2025-10-02T08:39:36.353Z",
           "url": "https://status.grafana.com/components/57jn84fvz98t"
         },
         {
@@ -130452,14 +130452,14 @@
           "name": "GCP India - prod-ap-south-0: Ingestion",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-06-12T21:51:41.574Z",
+          "updated_at": "2025-09-18T18:51:18.769Z",
           "url": "https://status.grafana.com/components/b74p2737fm3r"
         },
         {
           "name": "Azure Netherlands - prod-eu-west-3: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:54:09.533Z",
+          "updated_at": "2025-10-02T08:39:36.368Z",
           "url": "https://status.grafana.com/components/vcfc8qc5zj9n"
         },
         {
@@ -130550,7 +130550,7 @@
           "name": "Azure US Central - us-central2: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:54:09.547Z",
+          "updated_at": "2025-10-02T08:39:36.382Z",
           "url": "https://status.grafana.com/components/y5ymzvw0c99f"
         },
         {
@@ -130578,7 +130578,7 @@
           "name": "GCP UK - prod-gb-south-0: Ingestion",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-06-12T21:51:41.708Z",
+          "updated_at": "2025-09-18T18:51:18.784Z",
           "url": "https://status.grafana.com/components/993qpty6gv9f"
         },
         {
@@ -130620,7 +130620,7 @@
           "name": "GCP US Central - prod-us-central-0: Querying",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-09-13T00:01:03.359Z",
+          "updated_at": "2025-09-26T10:03:02.810Z",
           "url": "https://status.grafana.com/components/jhc34sjt42wd"
         },
         {
@@ -130655,7 +130655,7 @@
           "name": "GCP US Central - prod-us-central-0: Ingestion",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-08-06T05:47:03.332Z",
+          "updated_at": "2025-09-26T10:03:02.828Z",
           "url": "https://status.grafana.com/components/1tt4gx4t4q87"
         },
         {
@@ -130676,7 +130676,7 @@
           "name": "GCP Australia - prod-au-southeast-0: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:54:09.563Z",
+          "updated_at": "2025-10-02T08:39:36.399Z",
           "url": "https://status.grafana.com/components/p932bbpwynd4"
         },
         {
@@ -130753,7 +130753,7 @@
           "name": "GCP Belgium - prod-eu-west-0: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:54:09.579Z",
+          "updated_at": "2025-10-02T08:39:36.414Z",
           "url": "https://status.grafana.com/components/tgt3hljzszy8"
         },
         {
@@ -130816,7 +130816,7 @@
           "name": "GCP Brazil - prod-sa-east-0: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:54:09.597Z",
+          "updated_at": "2025-10-02T08:39:36.432Z",
           "url": "https://status.grafana.com/components/tfcmnh8pbnh9"
         },
         {
@@ -130879,7 +130879,7 @@
           "name": "GCP India - prod-ap-south-0: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:54:09.610Z",
+          "updated_at": "2025-10-02T08:39:36.446Z",
           "url": "https://status.grafana.com/components/hd6qyr8hc0yt"
         },
         {
@@ -130942,7 +130942,7 @@
           "name": "GCP Singapore - prod-ap-southeast-0: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:54:09.626Z",
+          "updated_at": "2025-10-02T08:39:36.461Z",
           "url": "https://status.grafana.com/components/5shpb4hb9xd1"
         },
         {
@@ -130991,7 +130991,7 @@
           "name": "GCP UK - prod-gb-south-0: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:54:09.640Z",
+          "updated_at": "2025-10-02T08:39:36.476Z",
           "url": "https://status.grafana.com/components/ybvy0jrqz78d"
         },
         {
@@ -131005,7 +131005,7 @@
           "name": "GCP US Central - prod-us-central-0: Rule Evaluation",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-04-16T19:54:09.645Z",
+          "updated_at": "2025-09-26T10:03:02.845Z",
           "url": "https://status.grafana.com/components/xkjgscz19z6c"
         },
         {
@@ -131033,7 +131033,7 @@
           "name": "GCP US Central - prod-us-central-0: Alertmanager",
           "status": "operational",
           "severity": null,
-          "updated_at": "2025-08-18T17:38:20.224Z",
+          "updated_at": "2025-10-02T08:39:36.493Z",
           "url": "https://status.grafana.com/components/x2sf2zvf07cy"
         },
         {
@@ -131093,18 +131093,33 @@
           "url": "https://status.grafana.com/components/x1brj4vmt5py"
         }
       ],
-      "okta": {},
-      "cleverbridge": {}
+      "okta": {
+        "All Systems": {
+          "status": "operational",
+          "severity": null,
+          "published": "N/A",
+          "description": "No recent incidents reported"
+        }
+      },
+      "cleverbridge": {
+        "All Systems": {
+          "status": "operational",
+          "severity": null,
+          "published": "N/A",
+          "description": "No recent incidents reported"
+        }
+      }
     },
-    "timestamp": "2025-09-17T06:31:06.754231",
+    "timestamp": "2025-10-06T08:36:43.031314",
     "collection_metadata": {
       "services_monitored": 10,
-      "total_components": 569,
+      "total_components": 571,
       "collection_duration": "enhanced_monitoring"
     }
   },
   "notification_history": [],
   "last_notification_times": {},
   "status_change_buffer": {},
-  "timestamp": "2025-09-17T06:32:21.843681"
+  "timestamp": "2025-10-06T08:39:26.467681",
+  "instance_id": "monitor_1759739793_18460"
 }

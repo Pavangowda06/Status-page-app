@@ -1072,6 +1072,16 @@
       return priorityMap[color] || 4; // Unknown colors get lowest priority
     }
 
+    function getDisplayName(serviceName) {
+      const upperCaseServices = {
+        'jsm': 'JSM',
+        'aws': 'AWS'
+      };
+  
+      return upperCaseServices[serviceName.toLowerCase()] || 
+            serviceName.charAt(0).toUpperCase() + serviceName.slice(1);
+    }
+
     function renderServicesByColorPriority() {
       const servicesGrid = document.getElementById('services-grid');
       if (!servicesGrid) return;
@@ -1103,7 +1113,7 @@
           <div class="service-card ${statusClass}" onclick="openServiceModal('${service.name}')">
             <div class="status-indicator ${statusClass}"></div>
             <div class="service-logo ${service.name}"></div>
-            <div class="service-name">${service.name.charAt(0).toUpperCase() + service.name.slice(1)}</div>
+            <div class="service-name">${getDisplayName(service.name)}</div>
             <div class="service-status ${statusClass}">${service.status}</div>
           </div>
         `;

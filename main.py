@@ -18,6 +18,13 @@ import hashlib
 import logging
 import sys
 from fastapi.staticfiles import StaticFiles
+try:
+    import fcntl
+    WINDOWS = False
+except ImportError:
+    import msvcrt
+    WINDOWS = True
+import time
 
 # Load environment variables
 load_dotenv()
@@ -48,18 +55,74 @@ notification_history = []
 rate_limiter = {}
 last_notification_times = {}
 status_change_buffer = {}
+instance_id = f"monitor_{int(time.time())}_{os.getpid()}"
+lock_file_path = "status_monitor.lock"
+
+def acquire_global_lock():
+    """Acquire global lock to ensure only one monitoring instance"""
+    try:
+        if WINDOWS:
+            # Windows file locking
+            lock_file = open(lock_file_path, 'w')
+            try:
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+                lock_file.write(f"{instance_id}\n{datetime.utcnow().isoformat()}")
+                lock_file.flush()
+                logger.info(f"Global lock acquired by instance {instance_id}")
+                return lock_file
+            except OSError:
+                lock_file.close()
+                logger.info(f"Global lock already held by another instance")
+                return None
+        else:
+            # Unix file locking
+            lock_file = open(lock_file_path, 'w')
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            lock_file.write(f"{instance_id}\n{datetime.utcnow().isoformat()}")
+            lock_file.flush()
+            logger.info(f"Global lock acquired by instance {instance_id}")
+            return lock_file
+    except (IOError, OSError):
+        logger.info(f"Global lock already held by another instance")
+        return None
+
+def release_global_lock(lock_file):
+    """Release global lock"""
+    if lock_file:
+        try:
+            if WINDOWS:
+                # Windows file unlocking
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                # Unix file unlocking
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            lock_file.close()
+            if os.path.exists(lock_file_path):
+                os.remove(lock_file_path)
+            logger.info(f"Global lock released by instance {instance_id}")
+        except:
+            pass
+
+# Global lock file handle
+global_lock = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Enhanced lifespan manager for background tasks"""
-    global monitoring_task
-    logger.info("Starting enhanced Slack monitoring system")
+    """Enhanced lifespan manager with global lock management"""
+    global monitoring_task, global_lock
     
-    try:
-        monitoring_task = asyncio.create_task(enhanced_continuous_monitoring())
-        logger.info("Monitoring task started successfully")
-    except Exception as e:
-        logger.error(f"Failed to start monitoring: {e}")
+    # Try to acquire global lock
+    global_lock = acquire_global_lock()
+    
+    if global_lock:
+        logger.info("Starting primary monitoring instance")
+        try:
+            monitoring_task = asyncio.create_task(enhanced_continuous_monitoring())
+            logger.info("Monitoring task started successfully")
+        except Exception as e:
+            logger.error(f"Failed to start monitoring: {e}")
+    else:
+        logger.info("Secondary instance detected - monitoring disabled")
     
     yield
     
@@ -71,6 +134,7 @@ async def lifespan(app: FastAPI):
             logger.info("Monitoring task cancelled cleanly")
     
     await save_monitoring_state()
+    release_global_lock(global_lock)
     logger.info("Enhanced monitoring system stopped")
 
 app = FastAPI(lifespan=lifespan)
@@ -85,15 +149,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# FIXED: Enhanced Slack Configuration with better defaults
+# Enhanced Slack Configuration with better defaults
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 SLACK_CHANNEL = os.getenv("SLACK_CHANNEL", "#status-alerts")
 SLACK_USERNAME = os.getenv("SLACK_USERNAME", "StatusBot")
 SLACK_ICON_EMOJI = os.getenv("SLACK_ICON_EMOJI", ":warning:")
-MONITORING_INTERVAL = int(os.getenv("MONITORING_INTERVAL", "120"))  # Reduced to 2 minutes for faster detection
-NOTIFICATION_COOLDOWN = int(os.getenv("NOTIFICATION_COOLDOWN", "300"))  # Reduced to 5 minutes
-MAX_NOTIFICATIONS_PER_HOUR = int(os.getenv("MAX_NOTIFICATIONS_PER_HOUR", "20"))
-CHANGE_CONFIRMATION_CYCLES = int(os.getenv("CHANGE_CONFIRMATION_CYCLES", "1"))  # FIXED: Reduced to 1 for immediate alerts
+MONITORING_INTERVAL = int(os.getenv("MONITORING_INTERVAL", "180"))  # 3 minutes for stability
+NOTIFICATION_COOLDOWN = int(os.getenv("NOTIFICATION_COOLDOWN", "600"))  # 10 minutes cooldown
+MAX_NOTIFICATIONS_PER_HOUR = int(os.getenv("MAX_NOTIFICATIONS_PER_HOUR", "10"))
+CHANGE_CONFIRMATION_CYCLES = int(os.getenv("CHANGE_CONFIRMATION_CYCLES", "2"))  # Require 2 confirmations
 
 # Enhanced service monitoring configuration
 MONITORED_SERVICES = [
@@ -119,7 +183,7 @@ try:
     api_key = os.getenv("GEMINI_API_KEY")
     if api_key:
         genai.configure(api_key=api_key)
-        gemini_client = genai.GenerativeModel('gemini-1.5-flash')
+        gemini_client = genai.GenerativeModel('gemini-2.5-flash')
         logger.info(f"Gemini client initialized")
     else:
         logger.warning("GEMINI_API_KEY not found in environment variables")
@@ -165,8 +229,487 @@ class EnhancedSlackNotification(BaseModel):
     region: Optional[str] = None
     incident_id: Optional[str] = None
 
+def create_notification_hash(notification: EnhancedSlackNotification) -> str:
+    """Create unique hash for notification to prevent duplicates"""
+    content = f"{notification.service}_{notification.previous_status}_{notification.current_status}_{notification.timestamp[:16]}"
+    return hashlib.md5(content.encode()).hexdigest()
+
+async def fetch_detailed_incident_data():
+    """Fetch detailed incident data from official APIs for chatbot"""
+    detailed_data = {}
+    
+    timeout = httpx.Timeout(30.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        
+        # GitHub incidents
+        try:
+            # Get current incidents
+            incidents_res = await client.get("https://www.githubstatus.com/api/v2/incidents.json")
+            github_data = {"incidents": [], "components": [], "overall_status": "operational"}
+            
+            if incidents_res.status_code == 200:
+                incidents_data = incidents_res.json()
+                
+                # Get active/recent incidents
+                for incident in incidents_data.get("incidents", [])[:5]:
+                    status = incident.get("status", "").lower()
+                    if status not in ["resolved", "postmortem"]:
+                        incident_info = {
+                            "name": incident.get("name", "Unknown incident"),
+                            "status": incident.get("status", "investigating"),
+                            "impact": incident.get("impact", "none"),
+                            "created_at": incident.get("created_at", ""),
+                            "updated_at": incident.get("updated_at", ""),
+                            "monitoring_at": incident.get("monitoring_at", ""),
+                            "resolved_at": incident.get("resolved_at", ""),
+                            "components": [comp.get("name", "") for comp in incident.get("components", [])],
+                            "updates": []
+                        }
+                        
+                        # Get latest updates
+                        for update in incident.get("incident_updates", [])[:3]:
+                            incident_info["updates"].append({
+                                "body": update.get("body", ""),
+                                "status": update.get("status", ""),
+                                "created_at": update.get("created_at", "")
+                            })
+                        
+                        github_data["incidents"].append(incident_info)
+                
+                if not github_data["incidents"]:
+                    github_data["overall_status"] = "operational"
+                else:
+                    github_data["overall_status"] = "incident"
+            
+            # Get component status
+            comp_res = await client.get("https://www.githubstatus.com/api/v2/components.json")
+            if comp_res.status_code == 200:
+                comp_data = comp_res.json()
+                for comp in comp_data.get("components", []):
+                    if comp.get("name") in github_components_to_show:
+                        github_data["components"].append({
+                            "name": comp.get("name", ""),
+                            "status": comp.get("status", "operational"),
+                            "description": comp.get("description", "")
+                        })
+            
+            detailed_data["github"] = github_data
+            
+        except Exception as e:
+            logger.error(f"Error fetching GitHub incident data: {e}")
+            detailed_data["github"] = {"incidents": [], "error": str(e)}
+
+        # Datadog incidents
+        try:
+            datadog_data = {"regions": {}, "overall_status": "operational"}
+            
+            for region, url in datadog_regions.items():
+                try:
+                    status_res = await client.get(f"{url}/api/v2/status.json")
+                    incidents_res = await client.get(f"{url}/api/v2/incidents.json")
+                    
+                    region_data = {"status": "operational", "incidents": []}
+                    
+                    if status_res.status_code == 200:
+                        status_data = status_res.json()
+                        indicator = status_data.get("status", {}).get("indicator", "none")
+                        description = status_data.get("status", {}).get("description", "")
+                        
+                        region_data["status"] = indicator
+                        region_data["description"] = description
+                        
+                        if indicator != "none":
+                            datadog_data["overall_status"] = "incident"
+                    
+                    if incidents_res.status_code == 200:
+                        incidents_data = incidents_res.json()
+                        
+                        for incident in incidents_data.get("incidents", [])[:3]:
+                            if incident.get("status", "").lower() not in ["resolved", "postmortem"]:
+                                incident_info = {
+                                    "name": incident.get("name", "Unknown incident"),
+                                    "status": incident.get("status", "investigating"),
+                                    "impact": incident.get("impact", "none"),
+                                    "created_at": incident.get("created_at", ""),
+                                    "updated_at": incident.get("updated_at", ""),
+                                    "monitoring_at": incident.get("monitoring_at", ""),
+                                    "resolved_at": incident.get("resolved_at", ""),
+                                    "components": [comp.get("name", "") for comp in incident.get("components", [])],
+                                    "updates": []
+                                }
+                                
+                                # Get latest updates
+                                for update in incident.get("incident_updates", [])[:2]:
+                                    incident_info["updates"].append({
+                                        "body": update.get("body", ""),
+                                        "status": update.get("status", ""),
+                                        "created_at": update.get("created_at", "")
+                                    })
+                                
+                                region_data["incidents"].append(incident_info)
+                                datadog_data["overall_status"] = "incident"
+                    
+                    datadog_data["regions"][region] = region_data
+                    
+                except Exception as e:
+                    logger.error(f"Error fetching Datadog {region} data: {e}")
+                    datadog_data["regions"][region] = {"status": "error", "error": str(e)}
+            
+            detailed_data["datadog"] = datadog_data
+            
+        except Exception as e:
+            logger.error(f"Error fetching Datadog incident data: {e}")
+            detailed_data["datadog"] = {"regions": {}, "error": str(e)}
+
+        # Jira incidents
+        try:
+            incidents_res = await client.get("https://jira-software.status.atlassian.com/api/v2/incidents.json")
+            jira_data = {"incidents": [], "components": [], "overall_status": "operational"}
+            
+            if incidents_res.status_code == 200:
+                incidents_data = incidents_res.json()
+                
+                for incident in incidents_data.get("incidents", [])[:5]:
+                    if incident.get("status", "").lower() not in ["resolved", "postmortem"]:
+                        incident_info = {
+                            "name": incident.get("name", "Unknown incident"),
+                            "status": incident.get("status", "investigating"),
+                            "impact": incident.get("impact", "none"),
+                            "created_at": incident.get("created_at", ""),
+                            "updated_at": incident.get("updated_at", ""),
+                            "monitoring_at": incident.get("monitoring_at", ""),
+                            "resolved_at": incident.get("resolved_at", ""),
+                            "components": [comp.get("name", "") for comp in incident.get("components", [])],
+                            "updates": []
+                        }
+                        
+                        for update in incident.get("incident_updates", [])[:2]:
+                            incident_info["updates"].append({
+                                "body": update.get("body", ""),
+                                "status": update.get("status", ""),
+                                "created_at": update.get("created_at", "")
+                            })
+                        
+                        jira_data["incidents"].append(incident_info)
+                        jira_data["overall_status"] = "incident"
+                
+                if not jira_data["incidents"]:
+                    jira_data["overall_status"] = "operational"
+            
+            detailed_data["jira"] = jira_data
+            
+        except Exception as e:
+            logger.error(f"Error fetching Jira incident data: {e}")
+            detailed_data["jira"] = {"incidents": [], "error": str(e)}
+
+        # JSM incidents
+        try:
+            incidents_res = await client.get("https://jira-service-management.status.atlassian.com/api/v2/incidents.json")
+            jsm_data = {"incidents": [], "components": [], "overall_status": "operational"}
+            
+            if incidents_res.status_code == 200:
+                incidents_data = incidents_res.json()
+                
+                for incident in incidents_data.get("incidents", [])[:5]:
+                    if incident.get("status", "").lower() not in ["resolved", "postmortem"]:
+                        incident_info = {
+                            "name": incident.get("name", "Unknown incident"),
+                            "status": incident.get("status", "investigating"),
+                            "impact": incident.get("impact", "none"),
+                            "created_at": incident.get("created_at", ""),
+                            "updated_at": incident.get("updated_at", ""),
+                            "monitoring_at": incident.get("monitoring_at", ""),
+                            "resolved_at": incident.get("resolved_at", ""),
+                            "components": [comp.get("name", "") for comp in incident.get("components", [])],
+                            "updates": []
+                        }
+                        
+                        for update in incident.get("incident_updates", [])[:2]:
+                            incident_info["updates"].append({
+                                "body": update.get("body", ""),
+                                "status": update.get("status", ""),
+                                "created_at": update.get("created_at", "")
+                            })
+                        
+                        jsm_data["incidents"].append(incident_info)
+                        jsm_data["overall_status"] = "incident"
+                
+                if not jsm_data["incidents"]:
+                    jsm_data["overall_status"] = "operational"
+            
+            detailed_data["jsm"] = jsm_data
+            
+        except Exception as e:
+            logger.error(f"Error fetching JSM incident data: {e}")
+            detailed_data["jsm"] = {"incidents": [], "error": str(e)}
+
+        # Prisma incidents
+        try:
+            incidents_res = await client.get("https://www.prisma-status.com/api/v2/incidents.json")
+            prisma_data = {"incidents": [], "overall_status": "operational"}
+            
+            if incidents_res.status_code == 200:
+                incidents_data = incidents_res.json()
+                
+                for incident in incidents_data.get("incidents", [])[:5]:
+                    if incident.get("status", "").lower() not in ["resolved", "postmortem"]:
+                        incident_info = {
+                            "name": incident.get("name", "Unknown incident"),
+                            "status": incident.get("status", "investigating"),
+                            "impact": incident.get("impact", "none"),
+                            "created_at": incident.get("created_at", ""),
+                            "updated_at": incident.get("updated_at", ""),
+                            "monitoring_at": incident.get("monitoring_at", ""),
+                            "resolved_at": incident.get("resolved_at", ""),
+                            "components": [comp.get("name", "") for comp in incident.get("components", [])],
+                            "updates": []
+                        }
+                        
+                        for update in incident.get("incident_updates", [])[:2]:
+                            incident_info["updates"].append({
+                                "body": update.get("body", ""),
+                                "status": update.get("status", ""),
+                                "created_at": update.get("created_at", "")
+                            })
+                        
+                        prisma_data["incidents"].append(incident_info)
+                        prisma_data["overall_status"] = "incident"
+                
+                if not prisma_data["incidents"]:
+                    prisma_data["overall_status"] = "operational"
+            
+            detailed_data["prisma"] = prisma_data
+            
+        except Exception as e:
+            logger.error(f"Error fetching Prisma incident data: {e}")
+            detailed_data["prisma"] = {"incidents": [], "error": str(e)}
+
+        # Grafana incidents
+        try:
+            incidents_res = await client.get("https://status.grafana.com/api/v2/incidents.json")
+            grafana_data = {"incidents": [], "overall_status": "operational"}
+            
+            if incidents_res.status_code == 200:
+                incidents_data = incidents_res.json()
+                
+                for incident in incidents_data.get("incidents", [])[:5]:
+                    if incident.get("status", "").lower() not in ["resolved", "postmortem"]:
+                        incident_info = {
+                            "name": incident.get("name", "Unknown incident"),
+                            "status": incident.get("status", "investigating"),
+                            "impact": incident.get("impact", "none"),
+                            "created_at": incident.get("created_at", ""),
+                            "updated_at": incident.get("updated_at", ""),
+                            "monitoring_at": incident.get("monitoring_at", ""),
+                            "resolved_at": incident.get("resolved_at", ""),
+                            "components": [comp.get("name", "") for comp in incident.get("components", [])],
+                            "updates": []
+                        }
+                        
+                        for update in incident.get("incident_updates", [])[:2]:
+                            incident_info["updates"].append({
+                                "body": update.get("body", ""),
+                                "status": update.get("status", ""),
+                                "created_at": update.get("created_at", "")
+                            })
+                        
+                        grafana_data["incidents"].append(incident_info)
+                        grafana_data["overall_status"] = "incident"
+                
+                if not grafana_data["incidents"]:
+                    grafana_data["overall_status"] = "operational"
+            
+            detailed_data["grafana"] = grafana_data
+            
+        except Exception as e:
+            logger.error(f"Error fetching Grafana incident data: {e}")
+            detailed_data["grafana"] = {"incidents": [], "error": str(e)}
+
+        # Okta incidents (RSS feed parsing)
+        try:
+            okta_res = await client.get("https://feeds.feedburner.com/OktaTrustRSS")
+            okta_data = {"incidents": [], "overall_status": "operational"}
+            
+            if okta_res.status_code == 200:
+                root = ET.fromstring(okta_res.text)
+                channel = root.find("channel")
+                items = channel.findall("item") if channel is not None else []
+                
+                recent_cutoff = datetime.utcnow() - timedelta(hours=48)
+                
+                for item in items[:10]:
+                    title = item.find("title").text if item.find("title") is not None else "Unknown"
+                    description = item.find("description").text if item.find("description") is not None else ""
+                    pub_date = item.find("pubDate").text if item.find("pubDate") is not None else ""
+                    link = item.find("link").text if item.find("link") is not None else ""
+                    
+                    try:
+                        if pub_date:
+                            pub_datetime = datetime.strptime(pub_date, '%a, %d %b %Y %H:%M:%S %z').replace(tzinfo=None)
+                        else:
+                            pub_datetime = datetime.utcnow()
+                    except:
+                        pub_datetime = datetime.utcnow()
+                    
+                    # Only include recent, unresolved incidents
+                    if (pub_datetime > recent_cutoff and 
+                        "resolved" not in title.lower() and 
+                        "operational" not in title.lower()):
+                        
+                        incident_info = {
+                            "name": title,
+                            "description": description[:500] + "..." if len(description) > 500 else description,
+                            "status": "investigating" if "investigating" in title.lower() else "incident",
+                            "published": pub_date,
+                            "link": link,
+                            "age_hours": int((datetime.utcnow() - pub_datetime).total_seconds() / 3600)
+                        }
+                        
+                        okta_data["incidents"].append(incident_info)
+                        okta_data["overall_status"] = "incident"
+                
+                if not okta_data["incidents"]:
+                    okta_data["overall_status"] = "operational"
+            
+            detailed_data["okta"] = okta_data
+            
+        except Exception as e:
+            logger.error(f"Error fetching Okta incident data: {e}")
+            detailed_data["okta"] = {"incidents": [], "error": str(e)}
+
+        # AWS data from JSON file
+        try:
+            aws_raw = load_aws_status()
+            aws_processed, aws_color, aws_status = process_aws_data(aws_raw)
+            
+            aws_data = {
+                "overall_status": aws_status.lower().replace(" ", "_"),
+                "status_color": aws_color,
+                "regions_summary": {}
+            }
+            
+            # Extract affected regions/services
+            affected_regions = []
+            for geography, geo_data in aws_processed.items():
+                if isinstance(geo_data, dict) and "regions" in geo_data:
+                    for region, region_data in geo_data["regions"].items():
+                        if isinstance(region_data, dict) and "_region_stats" in region_data:
+                            stats = region_data["_region_stats"]
+                            if stats.get("status_color") in ["red", "orange"]:
+                                affected_count = stats.get("total_service_count", 0) - stats.get("green_service_count", 0)
+                                if affected_count > 0:
+                                    affected_regions.append({
+                                        "geography": geography,
+                                        "region": region,
+                                        "affected_services": affected_count,
+                                        "total_services": stats.get("total_service_count", 0),
+                                        "status_color": stats.get("status_color")
+                                    })
+            
+            aws_data["affected_regions"] = affected_regions[:10]  # Limit to top 10
+            aws_data["total_affected_regions"] = len(affected_regions)
+            
+            detailed_data["aws"] = aws_data
+            logger.info(f"AWS data loaded: {aws_status}, {len(affected_regions)} affected regions")
+            
+        except Exception as e:
+            logger.error(f"Error fetching AWS data: {e}")
+            detailed_data["aws"] = {"overall_status": "error", "error": str(e)}
+
+        # Azure data from JSON file
+        try:
+            azure_raw = load_azure_status()
+            azure_processed, azure_color, azure_status = process_azure_data(azure_raw)
+            
+            azure_data = {
+                "overall_status": azure_status.lower().replace(" ", "_"),
+                "status_color": azure_color,
+                "regions_summary": {}
+            }
+            
+            # Extract affected regions/services
+            affected_regions = []
+            for geography, geo_data in azure_processed.items():
+                if isinstance(geo_data, dict) and "regions" in geo_data:
+                    for region, region_data in geo_data["regions"].items():
+                        if isinstance(region_data, dict) and "_region_stats" in region_data:
+                            stats = region_data["_region_stats"]
+                            if stats.get("status_color") in ["red", "orange"]:
+                                affected_count = stats.get("total_service_count", 0) - stats.get("green_service_count", 0)
+                                if affected_count > 0:
+                                    affected_regions.append({
+                                        "geography": geography,
+                                        "region": region,
+                                        "affected_services": affected_count,
+                                        "total_services": stats.get("total_service_count", 0),
+                                        "status_color": stats.get("status_color")
+                                    })
+            
+            azure_data["affected_regions"] = affected_regions[:10]  # Limit to top 10
+            azure_data["total_affected_regions"] = len(affected_regions)
+            
+            detailed_data["azure"] = azure_data
+            logger.info(f"Azure data loaded: {azure_status}, {len(affected_regions)} affected regions")
+            
+        except Exception as e:
+            logger.error(f"Error fetching Azure data: {e}")
+            detailed_data["azure"] = {"overall_status": "error", "error": str(e)}
+
+        # Cleverbridge incidents (RSS feed parsing)
+        try:
+            cb_res = await client.get("https://status.cleverbridge.com/history.rss")
+            cb_data = {"incidents": [], "overall_status": "operational"}
+            
+            if cb_res.status_code == 200:
+                root = ET.fromstring(cb_res.text)
+                channel = root.find("channel")
+                items = channel.findall("item") if channel is not None else []
+                
+                recent_cutoff = datetime.utcnow() - timedelta(hours=48)
+                
+                for item in items[:10]:
+                    title = item.find("title").text if item.find("title") is not None else "Unknown"
+                    description = item.find("description").text if item.find("description") is not None else ""
+                    pub_date = item.find("pubDate").text if item.find("pubDate") is not None else ""
+                    link = item.find("link").text if item.find("link") is not None else ""
+                    
+                    try:
+                        if pub_date:
+                            pub_datetime = datetime.strptime(pub_date, '%a, %d %b %Y %H:%M:%S %z').replace(tzinfo=None)
+                        else:
+                            pub_datetime = datetime.utcnow()
+                    except:
+                        pub_datetime = datetime.utcnow()
+                    
+                    if (pub_datetime > recent_cutoff and 
+                        "resolved" not in title.lower() and
+                        "operational" not in title.lower()):
+                        
+                        incident_info = {
+                            "name": title,
+                            "description": description[:500] + "..." if len(description) > 500 else description,
+                            "status": "investigating" if "investigating" in title.lower() else "incident",
+                            "published": pub_date,
+                            "link": link,
+                            "age_hours": int((datetime.utcnow() - pub_datetime).total_seconds() / 3600)
+                        }
+                        
+                        cb_data["incidents"].append(incident_info)
+                        cb_data["overall_status"] = "incident"
+                
+                if not cb_data["incidents"]:
+                    cb_data["overall_status"] = "operational"
+            
+            detailed_data["cleverbridge"] = cb_data
+            
+        except Exception as e:
+            logger.error(f"Error fetching Cleverbridge incident data: {e}")
+            detailed_data["cleverbridge"] = {"incidents": [], "error": str(e)}
+
+    return detailed_data
+
 def normalize_status(status: str) -> str:
-    """FIXED: Improved status normalization"""
+    """Improved status normalization"""
     if not status:
         return "unknown"
     
@@ -223,23 +766,40 @@ def get_priority_color(priority: str, status_change: str) -> str:
         return priority_colors.get(priority, "warning")
 
 def should_send_notification(notification: EnhancedSlackNotification) -> bool:
-    """FIXED: Simplified rate limiting logic"""
+    """Enhanced rate limiting with deduplication"""
     global rate_limiter, notification_history, last_notification_times
     
     current_time = datetime.utcnow()
     service = notification.service
     
-    # Always allow operational recovery notifications
+    # Create notification hash for deduplication
+    notification_hash = create_notification_hash(notification)
+    
+    # Check for duplicate notifications in recent history
+    for entry in notification_history[-20:]:  # Check last 20 notifications
+        if entry.get('hash') == notification_hash:
+            time_diff = (current_time - entry.get('timestamp', current_time)).total_seconds()
+            if time_diff < 1800:  # 30 minutes
+                logger.info(f"Duplicate notification blocked for {service} (hash: {notification_hash[:8]})")
+                return False
+    
+    # Always allow operational recovery notifications (but check cooldown)
     if normalize_status(notification.current_status) == "operational" and normalize_status(notification.previous_status) != "operational":
+        if service in last_notification_times:
+            time_diff = (current_time - last_notification_times[service]).total_seconds()
+            if time_diff < 300:  # 5 minute minimum between any notifications for same service
+                logger.info(f"Recovery notification blocked - too recent for {service}")
+                return False
+        
         logger.info(f"Allowing recovery notification for {service}")
         last_notification_times[service] = current_time
         return True
     
-    # FIXED: More lenient cooldown check
+    # Enhanced cooldown check for non-recovery notifications
     if service in last_notification_times:
         time_diff = (current_time - last_notification_times[service]).total_seconds()
         if time_diff < NOTIFICATION_COOLDOWN:
-            logger.info(f"Skipping notification for {service} - cooldown active ({NOTIFICATION_COOLDOWN - time_diff:.0f}s remaining)")
+            logger.info(f"Notification blocked for {service} - cooldown active ({NOTIFICATION_COOLDOWN - time_diff:.0f}s remaining)")
             return False
     
     # Check hourly rate limit
@@ -256,14 +816,113 @@ def should_send_notification(notification: EnhancedSlackNotification) -> bool:
     notification_history.append({
         'service': notification.service,
         'timestamp': current_time,
-        'status_change': f"{notification.previous_status} -> {notification.current_status}"
+        'status_change': f"{notification.previous_status} -> {notification.current_status}",
+        'hash': notification_hash
     })
     
     last_notification_times[service] = current_time
     return True
 
+def format_component_list(components: List[str], service: str) -> str:
+    """Format affected components list for notification"""
+    if not components:
+        return ""
+    
+    if len(components) == 1:
+        return f"• Component: {components[0]}"
+    elif len(components) <= 3:
+        return f"• Components: {', '.join(components)}"
+    else:
+        return f"• Components: {', '.join(components[:3])} and {len(components) - 3} more"
+
+def create_enhanced_slack_message(notification: EnhancedSlackNotification) -> dict:
+    """Create enhanced Slack message with proper formatting"""
+    status_emoji = get_status_emoji(notification.current_status, notification.severity)
+    color = get_priority_color(notification.priority, notification.current_status)
+    
+    # Enhanced title and message formatting
+    normalized_current = normalize_status(notification.current_status)
+    normalized_previous = normalize_status(notification.previous_status)
+    
+    # Determine change type and create appropriate message
+    if normalized_current == "operational" and normalized_previous != "operational":
+        # Recovery notification
+        title = f"{status_emoji} Service Recovered"
+        message_text = f"*{notification.service.upper()}* has returned to operational status"
+        if notification.components_affected:
+            component_text = format_component_list(notification.components_affected, notification.service)
+            message_text += f"\n{component_text}"
+    elif normalized_current == "maintenance":
+        # Maintenance notification
+        title = f":wrench: Maintenance Started"
+        message_text = f"*{notification.service.upper()}* is undergoing scheduled maintenance"
+    else:
+        # Issue notification
+        if normalized_current == "major_outage":
+            severity_indicator = ":rotating_light: CRITICAL: "
+        elif notification.priority == "critical":
+            severity_indicator = ":rotating_light: "
+        else:
+            severity_indicator = ""
+        
+        title = f"{status_emoji} {severity_indicator}Service Issue Detected"
+        message_text = f"*{notification.service.upper()}* status changed from *{notification.previous_status}* to *{notification.current_status}*"
+        
+        if notification.components_affected:
+            component_text = format_component_list(notification.components_affected, notification.service)
+            message_text += f"\n{component_text}"
+    
+    # Create fields
+    fields = [
+        {
+            "title": "Service",
+            "value": f"*{notification.service.upper()}*",
+            "short": True
+        },
+        {
+            "title": "Status Change",
+            "value": f"{notification.previous_status} → *{notification.current_status}*",
+            "short": True
+        },
+        {
+            "title": "Priority",
+            "value": f"*{notification.priority.title()}*",
+            "short": True
+        },
+        {
+            "title": "Detected",
+            "value": notification.timestamp,
+            "short": True
+        }
+    ]
+    
+    # Add incident URL if available
+    if notification.incident_url:
+        fields.append({
+            "title": "Status Page",
+            "value": f"<{notification.incident_url}|View Details>",
+            "short": False
+        })
+    
+    timestamp_unix = int(datetime.utcnow().timestamp())
+    
+    payload = {
+        "text": f"Status Alert: {notification.service.upper()}",
+        "attachments": [{
+            "fallback": f"{notification.service.upper()}: {notification.previous_status} → {notification.current_status}",
+            "color": color,
+            "title": title,
+            "text": message_text,
+            "fields": fields,
+            "footer": "Status Monitor",
+            "ts": timestamp_unix
+        }]
+    }
+    
+    return payload
+
 async def send_enhanced_slack_notification(notification: EnhancedSlackNotification) -> bool:
-    """FIXED: Enhanced Slack notification with better error handling"""
+    """Enhanced Slack notification with deduplication and proper formatting"""
     if not SLACK_WEBHOOK_URL:
         logger.warning("Slack webhook URL not configured")
         return False
@@ -272,79 +931,10 @@ async def send_enhanced_slack_notification(notification: EnhancedSlackNotificati
         return False
     
     try:
-        status_emoji = get_status_emoji(notification.current_status, notification.severity)
-        color = get_priority_color(notification.priority, notification.current_status)
-        
-        # Enhanced title and message formatting
-        normalized_current = normalize_status(notification.current_status)
-        normalized_previous = normalize_status(notification.previous_status)
-        
-        if normalized_current == "operational" and normalized_previous != "operational":
-            title = f"{status_emoji} Service Restored: {notification.service.upper()}"
-            message_text = f"Service has returned to operational status"
-        elif normalized_current == "maintenance":
-            title = f":wrench: Maintenance: {notification.service.upper()}"
-            message_text = f"Service is under scheduled maintenance"
-        else:
-            priority_indicator = ":rotating_light: " if notification.priority == "critical" else ""
-            title = f"{status_emoji} {priority_indicator}Service Alert: {notification.service.upper()}"
-            message_text = f"Status changed: {notification.previous_status} → {notification.current_status}"
-        
-        # FIXED: Simplified fields structure
-        fields = [
-            {
-                "title": "Service",
-                "value": f"*{notification.service.upper()}*",
-                "short": True
-            },
-            {
-                "title": "Previous Status",
-                "value": notification.previous_status,
-                "short": True
-            },
-            {
-                "title": "Current Status", 
-                "value": f"*{notification.current_status}*",
-                "short": True
-            },
-            {
-                "title": "Priority",
-                "value": f"*{notification.priority.title()}*",
-                "short": True
-            }
-        ]
-        
-        timestamp_unix = int(datetime.utcnow().timestamp())
-        
-        # FIXED: Simplified payload structure
-        payload = {
-            "text": f"Status Alert: {notification.service.upper()}",
-            "attachments": [{
-                "fallback": f"{notification.service.upper()}: {notification.previous_status} → {notification.current_status}",
-                "color": color,
-                "title": title,
-                "text": message_text,
-                "fields": fields,
-                "footer": "Status Monitor",
-                "ts": timestamp_unix
-            }]
-        }
-        
-        # Add components if available
-        if notification.components_affected:
-            components_text = ", ".join(notification.components_affected[:5])
-            if len(notification.components_affected) > 5:
-                components_text += f" and {len(notification.components_affected) - 5} more"
-            
-            payload["attachments"][0]["fields"].append({
-                "title": "Affected Components",
-                "value": components_text,
-                "short": False
-            })
+        payload = create_enhanced_slack_message(notification)
         
         logger.info(f"Sending Slack notification for {notification.service}: {notification.previous_status} → {notification.current_status}")
         
-        # FIXED: Better HTTP client handling
         timeout = httpx.Timeout(30.0)
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(
@@ -354,10 +944,10 @@ async def send_enhanced_slack_notification(notification: EnhancedSlackNotificati
             )
             
             if response.status_code == 200:
-                logger.info(f"✓ Slack notification sent successfully for {notification.service}")
+                logger.info(f"Slack notification sent successfully for {notification.service}")
                 return True
             else:
-                logger.error(f"✗ Slack notification failed: {response.status_code} - {response.text}")
+                logger.error(f"Slack notification failed: {response.status_code} - {response.text}")
                 return False
                         
     except Exception as e:
@@ -365,7 +955,7 @@ async def send_enhanced_slack_notification(notification: EnhancedSlackNotificati
         return False
 
 def detect_enhanced_status_changes(current_status: dict, previous: dict) -> List[EnhancedSlackNotification]:
-    """FIXED: More aggressive change detection"""
+    """Enhanced change detection with better confirmation logic"""
     global status_change_buffer
     
     notifications = []
@@ -387,25 +977,25 @@ def detect_enhanced_status_changes(current_status: dict, previous: dict) -> List
         
         logger.info(f"Checking {service}: '{previous_service_status}' ({previous_normalized}) → '{current_service_status}' ({current_normalized})")
         
-        # FIXED: Skip only if truly no change AND previous is not unknown
+        # Skip if no meaningful change
         if current_normalized == previous_normalized and previous_normalized != "unknown":
             logger.debug(f"No change for {service}")
             continue
         
-        # FIXED: Allow initial state notifications (when previous is unknown)
+        # Skip initial operational state
         if previous_normalized == "unknown" and current_normalized == "operational":
             logger.debug(f"Skipping initial operational state for {service}")
             continue
-            
-        # FIXED: Reduced confirmation requirement - immediate notifications for non-operational states
+        
+        # Buffer key for tracking changes
         buffer_key = f"{service}_{current_normalized}"
         
-        # For critical changes, send immediately
-        if (current_normalized in ["major_outage", "degraded"] or 
+        # For critical changes or recovery, send immediately
+        if (current_normalized in ["major_outage"] or 
             (current_normalized == "operational" and previous_normalized in ["major_outage", "degraded"])):
-            logger.info(f"Critical change detected for {service} - sending immediately")
+            logger.info(f"Critical/Recovery change detected for {service} - processing immediately")
         else:
-            # Use buffer for minor changes
+            # Use buffer for other changes
             if buffer_key not in status_change_buffer:
                 status_change_buffer[buffer_key] = {
                     'count': 1,
@@ -452,8 +1042,9 @@ def detect_enhanced_status_changes(current_status: dict, previous: dict) -> List
                     for comp in components:
                         if isinstance(comp, dict):
                             comp_status = normalize_status(comp.get("status", ""))
+                            comp_name = comp.get("name", "Unknown Component")
                             if comp_status != "operational":
-                                affected_components.append(comp.get("name", "Unknown Component"))
+                                affected_components.append(comp_name)
         except Exception as e:
             logger.error(f"Error analyzing components for {service}: {e}")
         
@@ -480,7 +1071,9 @@ def detect_enhanced_status_changes(current_status: dict, previous: dict) -> List
             "prisma": "https://www.prisma-status.com",
             "grafana": "https://status.grafana.com",
             "okta": "https://status.okta.com",
-            "cleverbridge": "https://status.cleverbridge.com"
+            "cleverbridge": "https://status.cleverbridge.com",
+            "azure": "https://status.azure.com",
+            "aws": "https://status.aws.amazon.com"
         }
         
         notification = EnhancedSlackNotification(
@@ -490,7 +1083,7 @@ def detect_enhanced_status_changes(current_status: dict, previous: dict) -> List
             timestamp=current_time,
             severity=severity,
             priority=priority,
-            components_affected=affected_components[:5],
+            components_affected=affected_components[:5],  # Limit to 5 components
             duration="ongoing" if current_normalized != "operational" else "resolved",
             incident_url=incident_urls.get(service),
             region=region_info,
@@ -691,7 +1284,7 @@ def process_aws_data(aws_data):
     return processed_data, aws_color, aws_label
 
 async def get_current_status_data():
-    """FIXED: Enhanced status data collection with better error handling"""
+    """Enhanced status data collection with better error handling"""
     details = {}
     status_colors = {}
     components = {}
@@ -877,7 +1470,6 @@ async def get_current_status_data():
         components["prisma"] = prisma_components
         logger.info(f"Prisma status: {details['prisma']} ({non_operational_prisma} components non-operational)")
 
-        # Enhanced Grafana processing
         # Enhanced Grafana processing (FIXED to return a List)
         grafana_components = []  # CHANGED: Back to a list
         try:
@@ -886,13 +1478,13 @@ async def get_current_status_data():
                 name = comp.get("name")
                 status = comp.get("status")
                 
-                # CHANGED: Appending a dictionary to the list, just like your FIRST_CODE
+                # CHANGED: Appending a dictionary to the list
                 grafana_components.append({
                     "name": name,
                     "status": status,
                     "severity": status if normalize_status(status) != "operational" else None,
                     "updated_at": comp.get("updated_at"),
-                    "url": f"https://status.grafana.com/components/{comp.get('id')}" # Restored this from your first code
+                    "url": f"https://status.grafana.com/components/{comp.get('id')}"
                 })
             logger.info(f"Grafana components loaded: {len(grafana_components)}")
             
@@ -1030,17 +1622,18 @@ async def get_current_status_data():
     }
 
 async def enhanced_continuous_monitoring():
-    """FIXED: Enhanced continuous monitoring with better change detection and debugging"""
+    """Enhanced continuous monitoring with singleton pattern"""
     global previous_status, monitoring_active
     
     monitoring_active = True
     consecutive_errors = 0
     max_consecutive_errors = 5
     
-    logger.info(f"🚀 Starting enhanced monitoring every {MONITORING_INTERVAL} seconds")
-    logger.info(f"Slack notifications: {'✓ Enabled' if SLACK_WEBHOOK_URL else '✗ Disabled - Set SLACK_WEBHOOK_URL'}")
+    logger.info(f"Starting enhanced monitoring every {MONITORING_INTERVAL} seconds")
+    logger.info(f"Slack notifications: {'Enabled' if SLACK_WEBHOOK_URL else '✗ Disabled - Set SLACK_WEBHOOK_URL'}")
     logger.info(f"Change confirmation cycles: {CHANGE_CONFIRMATION_CYCLES}")
     logger.info(f"Monitored services: {', '.join(MONITORED_SERVICES)}")
+    logger.info(f"Instance ID: {instance_id}")
     
     # Load previous state if available
     await load_monitoring_state()
@@ -1048,7 +1641,7 @@ async def enhanced_continuous_monitoring():
     while monitoring_active:
         try:
             logger.info("=" * 50)
-            logger.info("🔍 Starting monitoring cycle...")
+            logger.info(f"Starting monitoring cycle (Instance: {instance_id})")
             
             # Get current status
             current_status = await asyncio.wait_for(
@@ -1059,7 +1652,7 @@ async def enhanced_continuous_monitoring():
             # Initialize previous_status on first run
             if not previous_status:
                 previous_status = current_status
-                logger.info("📊 Initial status baseline established")
+                logger.info("Initial status baseline established")
                 
                 # Log initial status for debugging
                 for service in MONITORED_SERVICES:
@@ -1071,7 +1664,7 @@ async def enhanced_continuous_monitoring():
                 continue
             
             # Enhanced change detection with detailed logging
-            logger.info("🔎 Detecting status changes...")
+            logger.info("Detecting status changes...")
             notifications = detect_enhanced_status_changes(current_status, previous_status)
             
             # Send notifications
@@ -1079,7 +1672,7 @@ async def enhanced_continuous_monitoring():
             failed_notifications = 0
             
             if notifications:
-                logger.info(f"📨 Found {len(notifications)} status changes to notify")
+                logger.info(f"Found {len(notifications)} status changes to notify")
                 
                 for notification in notifications:
                     try:
@@ -1087,15 +1680,15 @@ async def enhanced_continuous_monitoring():
                         success = await send_enhanced_slack_notification(notification)
                         if success:
                             successful_notifications += 1
-                            logger.info(f"✓ Notification sent successfully for {notification.service}")
+                            logger.info(f"Notification sent successfully for {notification.service}")
                         else:
                             failed_notifications += 1
-                            logger.warning(f"✗ Notification failed for {notification.service}")
+                            logger.warning(f"Notification failed for {notification.service}")
                     except Exception as e:
                         failed_notifications += 1
-                        logger.error(f"✗ Failed to send notification for {notification.service}: {e}")
+                        logger.error(f"Failed to send notification for {notification.service}: {e}")
             else:
-                logger.info("📊 No status changes detected")
+                logger.info("No status changes detected")
             
             # Update previous status
             previous_status = current_status
@@ -1105,14 +1698,13 @@ async def enhanced_continuous_monitoring():
             total_services = len(current_status.get("details", {}))
             operational_services = sum(1 for status in current_status.get("details", {}).values() 
                                      if normalize_status(status) == "operational")
-            # I have implemenetd a status page for github, azure, aws, datadog, jira, jsm, prisma, grafana, okta, cleverbridge along with chatbot and slack integeration to send alert message. But Now i want to chnage UI, PLease refer the screenshot for Ui Integrartion and inside the box make sure that instead of the components names their logos should be present. Make the ai to present where it look good. I think python program no need to be chnaged for this, remember have a special note on components dropdown. I need all the components dropdown. Implement the code and give me back fully implemented functional code.
             
             if notifications:
-                logger.info(f"✅ Monitoring cycle complete - {successful_notifications}/{len(notifications)} notifications sent successfully, {failed_notifications} failed")
+                logger.info(f"Monitoring cycle complete - {successful_notifications}/{len(notifications)} notifications sent successfully, {failed_notifications} failed")
             else:
-                logger.info(f"✅ Monitoring cycle complete - no changes detected")
+                logger.info(f"Monitoring cycle complete - no changes detected")
                 
-            logger.info(f"📊 Services status: {operational_services}/{total_services} operational")
+            logger.info(f"Services status: {operational_services}/{total_services} operational")
             
             # Log current status for debugging
             for service in MONITORED_SERVICES:
@@ -1120,32 +1712,32 @@ async def enhanced_continuous_monitoring():
                     status = current_status["details"][service]
                     normalized = normalize_status(status)
                     if normalized != "operational":
-                        logger.info(f"  ⚠️  {service}: {status} ({normalized})")
+                        logger.info(f"   {service}: {status} ({normalized})")
                     else:
-                        logger.debug(f"  ✓ {service}: {status}")
+                        logger.debug(f"  {service}: {status}")
             
             # Save state periodically
             await save_monitoring_state()
             
         except asyncio.TimeoutError:
             consecutive_errors += 1
-            logger.error(f"⏰ Monitoring cycle timeout (error count: {consecutive_errors})")
+            logger.error(f"Monitoring cycle timeout (error count: {consecutive_errors})")
         except Exception as e:
             consecutive_errors += 1
-            logger.error(f"💥 Error in monitoring cycle: {e} (error count: {consecutive_errors})")
+            logger.error(f"Error in monitoring cycle: {e} (error count: {consecutive_errors})")
             
             if consecutive_errors >= max_consecutive_errors:
-                logger.critical(f"🚨 Too many consecutive errors ({consecutive_errors}), sending alert")
+                logger.critical(f"Too many consecutive errors ({consecutive_errors}), sending alert")
                 await send_system_alert_notification(f"Monitoring system experiencing issues: {str(e)}")
                 consecutive_errors = 0
         
         # Adaptive sleep based on errors
         if consecutive_errors > 0:
             sleep_time = min(MONITORING_INTERVAL * (2 ** consecutive_errors), 1800)
-            logger.info(f"⏸️  Extended sleep due to errors: {sleep_time}s")
+            logger.info(f"Extended sleep due to errors: {sleep_time}s")
             await asyncio.sleep(sleep_time)
         else:
-            logger.info(f"⏸️  Sleeping for {MONITORING_INTERVAL}s until next cycle...")
+            logger.info(f"Sleeping for {MONITORING_INTERVAL}s until next cycle...")
             await asyncio.sleep(MONITORING_INTERVAL)
 
 async def send_system_alert_notification(message: str):
@@ -1159,7 +1751,7 @@ async def send_system_alert_notification(message: str):
             "text": "Status Monitor System Alert",
             "attachments": [{
                 "color": "danger",
-                "title": "🚨 Status Monitor System Alert",
+                "title": "Status Monitor System Alert",
                 "text": message,
                 "footer": "Enhanced Status Monitor - System Alert",
                 "ts": int(datetime.utcnow().timestamp())
@@ -1170,7 +1762,7 @@ async def send_system_alert_notification(message: str):
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(SLACK_WEBHOOK_URL, json=payload)
             if response.status_code == 200:
-                logger.info("🚨 System alert notification sent successfully")
+                logger.info("System alert notification sent successfully")
             else:
                 logger.error(f"Failed to send system alert: {response.status_code}")
         
@@ -1190,24 +1782,33 @@ async def save_monitoring_state():
                     'first_seen': v['first_seen'].isoformat() if isinstance(v.get('first_seen'), datetime) else v.get('first_seen')
                 } for k, v in status_change_buffer.items()
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
+            "instance_id": instance_id
         }
         
         with open("monitoring_state.json", "w", encoding='utf-8') as f:
             json.dump(state, f, indent=2, default=str, ensure_ascii=False)
         
-        logger.debug("💾 Monitoring state saved successfully")
+        logger.debug("Monitoring state saved successfully")
     except Exception as e:
-        logger.error(f"💥 Failed to save monitoring state: {e}")
-
+        logger.error(f"Failed to save monitoring state: {e}")
 async def load_monitoring_state():
     """Load monitoring state from disk"""
     global previous_status, notification_history, last_notification_times, status_change_buffer
-    
     try:
         if os.path.exists("monitoring_state.json"):
             with open("monitoring_state.json", "r", encoding='utf-8') as f:
                 state = json.load(f)
+            
+            # Only load state if it's recent (within last hour)
+            try:
+                state_timestamp = datetime.fromisoformat(state.get("timestamp", ""))
+                if datetime.utcnow() - state_timestamp > timedelta(hours=1):
+                    logger.info("Previous state too old, starting fresh")
+                    return
+            except:
+                logger.info("Invalid timestamp in previous state, starting fresh")
+                return
             
             previous_status = state.get("previous_status", {})
             notification_history = state.get("notification_history", [])
@@ -1239,22 +1840,24 @@ async def load_monitoring_state():
                     except:
                         entry["timestamp"] = datetime.utcnow()
             
-            logger.info("💾 Monitoring state loaded successfully")
+            logger.info(f"Monitoring state loaded successfully (Previous instance: {state.get('instance_id', 'unknown')})")
         else:
-            logger.info("🆕 No previous monitoring state found, starting fresh")
+            logger.info("No previous monitoring state found, starting fresh")
     except Exception as e:
-        logger.error(f"💥 Failed to load monitoring state: {e}")
+        logger.error(f"Failed to load monitoring state: {e}")
         previous_status = {}
         notification_history = []
         last_notification_times = {}
         status_change_buffer = {}
 
-# API endpoints
+# API endpoints (keeping only chatbot - unchanged)
 @app.post("/api/chat")
 async def professional_chat_endpoint(chat_message: ChatMessage):
-    """Enhanced professional incident analysis chat endpoint"""
+    """ENHANCED: Professional incident analysis chat endpoint with live data from official APIs"""
     try:
+        # Get both status data and detailed incident information
         status_data = await get_current_status_data()
+        incident_data = await fetch_detailed_incident_data()
         
         if not gemini_client:
             operational = sum(1 for s in status_data["details"].values() if normalize_status(s) == "operational")
@@ -1266,55 +1869,254 @@ async def professional_chat_endpoint(chat_message: ChatMessage):
                 sources=[f"Status Dashboard ({timestamp} UTC)"]
             )
         
-        # Create context for AI
+        # Create comprehensive context for AI
         operational = sum(1 for s in status_data["details"].values() if normalize_status(s) == "operational")
         total = len(status_data["details"])
+        timestamp = status_data['timestamp'][:19].replace('T', ' ')
         
-        context = f"System Status: {operational}/{total} services operational\n"
-        context += f"Updated: {status_data['timestamp'][:19].replace('T', ' ')} UTC\n\n"
+        context = f"LIVE STATUS REPORT - {timestamp} UTC\n"
+        context += f"Overall: {operational}/{total} services operational\n\n"
         
-        issues = [service for service, status in status_data["details"].items() 
-                 if normalize_status(status) != "operational"]
+        # Add detailed incident information from official APIs
+        incidents_found = False
         
-        if issues:
-            context += f"Services with issues: {', '.join(issues)}\n"
-            for service in issues:
-                if service in status_data.get("components", {}):
-                    components = status_data["components"][service]
-                    if isinstance(components, dict):
-                        affected = [name for name, info in components.items() 
-                                  if isinstance(info, dict) and normalize_status(info.get("status", "")) != "operational"]
-                        if affected:
-                            context += f"{service.upper()} affected components: {', '.join(affected[:3])}\n"
-        else:
-            context += "All monitored services operational\n"
+        for service_name, service_data in incident_data.items():
+            if service_name in ["github", "datadog", "jira", "jsm", "prisma", "grafana", "okta", "cleverbridge"]:
+                context += f"{service_name.upper()}:\n"
+                
+                if service_data.get("overall_status") == "incident" or service_data.get("incidents"):
+                    incidents_found = True
+                    incidents = service_data.get("incidents", [])
+                    
+                    if incidents:
+                        context += f"  Active Incidents ({len(incidents)}):\n"
+                        for i, incident in enumerate(incidents[:3], 1):  # Limit to 3 most important
+                            context += f"  {i}. {incident.get('name', 'Unknown')}\n"
+                            context += f"     Status: {incident.get('status', 'investigating')}\n"
+                            context += f"     Impact: {incident.get('impact', 'unknown')}\n"
+                            
+                            if incident.get('created_at'):
+                                try:
+                                    created = datetime.fromisoformat(incident['created_at'].replace('Z', '+00:00'))
+                                    age = datetime.utcnow().replace(tzinfo=created.tzinfo) - created
+                                    hours = int(age.total_seconds() / 3600)
+                                    context += f"     Duration: {hours}h ago\n"
+                                except:
+                                    pass
+                            
+                            # Add latest update
+                            if incident.get('updates') and len(incident['updates']) > 0:
+                                latest_update = incident['updates'][0]
+                                update_body = latest_update.get('body', '')
+                                if update_body and len(update_body) > 100:
+                                    update_body = update_body[:200] + "..."
+                                context += f"     Latest: {update_body}\n"
+                            
+                            if incident.get('components'):
+                                components = incident['components'][:3]  # Show max 3 components
+                                context += f"     Components: {', '.join(components)}\n"
+                            
+                            context += "\n"
+                    else:
+                        context += "  Status: Operational\n"
+                else:
+                    context += "  Status: Operational\n"
+                
+                # Add region-specific info for Datadog
+                if service_name == "datadog" and "regions" in service_data:
+                    non_operational_regions = []
+                    for region, region_data in service_data["regions"].items():
+                        if region_data.get("status") != "none":
+                            non_operational_regions.append(f"{region}: {region_data.get('status')}")
+                    
+                    if non_operational_regions:
+                        context += f"  Affected Regions: {', '.join(non_operational_regions[:3])}\n"
+                
+                context += "\n"
         
+        # Add Azure and AWS status if they have issues
+        # Add Azure and AWS status with detailed region information
+        for cloud_service in ["azure", "aws"]:
+            if cloud_service in incident_data and cloud_service in status_data["details"]:
+                cloud_data = incident_data[cloud_service]
+                service_status = status_data["details"][cloud_service]
+                
+                context += f"{cloud_service.upper()}:\n"
+                context += f"  Overall Status: {cloud_data.get('overall_status', service_status)}\n"
+                
+                affected_regions = cloud_data.get("affected_regions", [])
+                total_affected = cloud_data.get("total_affected_regions", 0)
+                
+                if affected_regions:
+                    context += f"  Affected Regions: {total_affected}\n"
+                    context += f"  Top Issues:\n"
+                    for region_info in affected_regions[:5]:  # Show top 5
+                        context += f"    • {region_info['geography']} - {region_info['region']}: "
+                        context += f"{region_info['affected_services']}/{region_info['total_services']} services impacted "
+                        context += f"({region_info['status_color']} status)\n"
+                else:
+                    context += f"  All regions operational\n"
+                
+                context += "\n"
+        
+        if not incidents_found:
+            context += "All monitored services are currently operational with no active incidents.\n\n"
+        
+        # Enhanced prompt for better responses
         prompt = f"""{context}
+
+
 
 USER QUERY: {chat_message.message}
 
-Provide a helpful response about the current status. Be factual and concise."""
+INSTRUCTIONS:
+- Provide a professional, concise response (6-10 lines maximum)
+- Focus on live incident data and current status
+- If asking about specific services, provide current status and any ongoing incidents
+- Include estimated recovery times if mentioned in updates
+- For non-operational services, explain the impact and investigation status
+- Use official incident data, not generic status labels
+- Be specific about which components/regions are affected
+- If everything is operational, confirm this clearly
+
+Response:"""
 
         response = gemini_client.generate_content(prompt)
-        ai_response = response.text.strip() if response and response.text else "Unable to generate response."
+        ai_response = response.text.strip() if response and response.text else "Unable to generate response from live incident data."
         
-        timestamp = status_data['timestamp'][:19].replace('T', ' ')
+        # Create sources list
+        sources = [f"Live Status APIs ({timestamp} UTC)"]
+        
+        # Add specific incident sources if incidents were found
+        incident_services = []
+        for service_name, service_data in incident_data.items():
+            if service_data.get("incidents") or service_data.get("overall_status") == "incident":
+                incident_services.append(service_name.title())
+        
+        if incident_services:
+            sources.append(f"Active incidents from: {', '.join(incident_services)}")
+        
         return ChatResponse(
-            response=ai_response, 
-            sources=[f"AI Analysis + Status Dashboard ({timestamp} UTC)"]
+            response=ai_response,
+            sources=sources
         )
         
     except Exception as e:
-        logger.error(f"Chat error: {str(e)}")
-        return ChatResponse(
-            response="Status analysis temporarily unavailable. Please retry.",
-            sources=["Error Recovery System"]
-        )
+        logger.error(f"Enhanced chat error: {str(e)}")
+        
+        # Fallback response with basic status
+        try:
+            status_data = await get_current_status_data()
+            operational = sum(1 for s in status_data["details"].values() if normalize_status(s) == "operational")
+            total = len(status_data["details"])
+            
+            issues = [service for service, status in status_data["details"].items() 
+                     if normalize_status(status) != "operational"]
+            
+            if issues:
+                fallback_response = f"Live data analysis temporarily unavailable. Current status: {operational}/{total} services operational. Services with issues: {', '.join(issues)}. Please check individual service status pages for detailed incident information."
+            else:
+                fallback_response = f"Live data analysis temporarily unavailable. All {total} monitored services are currently operational."
+            
+            return ChatResponse(
+                response=fallback_response,
+                sources=["Fallback Status Check"]
+            )
+        except:
+            return ChatResponse(
+                response="Status analysis temporarily unavailable. Please retry or check service status pages directly.",
+                sources=["Error Recovery System"]
+            )
+        
+@app.get("/api/debug/full")
+async def full_debug():
+    """Complete debugging information"""
+    import traceback
+    
+    debug_info = {
+        "environment_check": {},
+        "gemini_check": {},
+        "api_test": {},
+        "error": None
+    }
+    
+    # 1. Check environment variables
+    debug_info["environment_check"] = {
+        "env_file_exists": os.path.exists(".env"),
+        "gemini_key_in_env": "GEMINI_API_KEY" in os.environ,
+        "gemini_key_length": len(os.getenv("GEMINI_API_KEY", "")) if os.getenv("GEMINI_API_KEY") else 0,
+        "gemini_key_preview": os.getenv("GEMINI_API_KEY", "")[:20] + "..." if os.getenv("GEMINI_API_KEY") else "NOT SET",
+        "working_directory": os.getcwd(),
+        "env_file_path": os.path.join(os.getcwd(), ".env")
+    }
+    
+    # 2. Check Gemini client
+    debug_info["gemini_check"] = {
+        "client_exists": gemini_client is not None,
+        "client_type": str(type(gemini_client)) if gemini_client else "None"
+    }
+    
+    # 3. Try to actually call the API
+    try:
+        if gemini_client:
+            test_response = gemini_client.generate_content("Say 'working' if you can read this")
+            debug_info["api_test"] = {
+                "success": True,
+                "response": test_response.text if test_response else "No response",
+                "error": None
+            }
+        else:
+            debug_info["api_test"] = {
+                "success": False,
+                "response": None,
+                "error": "Gemini client is None - API key not loaded"
+            }
+    except Exception as e:
+        debug_info["api_test"] = {
+            "success": False,
+            "response": None,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
+    
+    return debug_info
 
+@app.get("/api/debug/models")
+async def list_available_models():
+    """List all available Gemini models"""
+    try:
+        import google.generativeai as genai
+        
+        # List all models
+        models = genai.list_models()
+        
+        available_models = []
+        for model in models:
+            available_models.append({
+                "name": model.name,
+                "display_name": model.display_name,
+                "description": model.description,
+                "supported_methods": model.supported_generation_methods
+            })
+        
+        return {
+            "success": True,
+            "total_models": len(available_models),
+            "models": available_models
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
+        
+# Enhanced Slack API endpoints
 @app.get("/api/slack/status")
 async def get_enhanced_slack_monitoring_status():
     """Get comprehensive Slack monitoring status with debugging info"""
-    global notification_history, status_change_buffer
+    global notification_history, status_change_buffer, global_lock
     
     recent_notifications = [
         entry for entry in notification_history
@@ -1323,6 +2125,8 @@ async def get_enhanced_slack_monitoring_status():
     
     return {
         "monitoring_active": monitoring_active,
+        "is_primary_instance": global_lock is not None,
+        "instance_id": instance_id,
         "webhook_configured": bool(SLACK_WEBHOOK_URL),
         "webhook_url_preview": SLACK_WEBHOOK_URL[:50] + "..." if SLACK_WEBHOOK_URL and len(SLACK_WEBHOOK_URL) > 50 else SLACK_WEBHOOK_URL or "Not configured",
         "channel": SLACK_CHANNEL,
@@ -1335,16 +2139,23 @@ async def get_enhanced_slack_monitoring_status():
         "last_check": previous_status.get('timestamp', 'Never') if previous_status else 'Never',
         "notifications_last_24h": len(recent_notifications),
         "pending_changes": len(status_change_buffer),
+        "deduplication": {
+            "enabled": True,
+            "hash_based": True,
+            "cooldown_based": True
+        },
         "debug_info": {
             "total_notification_history": len(notification_history),
             "last_notification_times_count": len(last_notification_times),
-            "current_status_services": list(previous_status.get('details', {}).keys()) if previous_status else []
+            "current_status_services": list(previous_status.get('details', {}).keys()) if previous_status else [],
+            "singleton_lock_active": global_lock is not None
         },
         "recent_notifications": [
             {
                 "service": entry.get('service'),
                 "status_change": entry.get('status_change'),
-                "timestamp": entry.get('timestamp').isoformat() if isinstance(entry.get('timestamp'), datetime) else str(entry.get('timestamp'))
+                "timestamp": entry.get('timestamp').isoformat() if isinstance(entry.get('timestamp'), datetime) else str(entry.get('timestamp')),
+                "hash": entry.get('hash', 'unknown')[:8]  # Show first 8 chars of hash
             } for entry in recent_notifications[-10:]
         ],
         "pending_change_buffer": [
@@ -1379,39 +2190,62 @@ async def test_enhanced_slack_notification():
     )
     
     try:
-        logger.info("🧪 Sending test notification...")
-        success = await send_enhanced_slack_notification(test_notification)
+        logger.info("Sending test notification...")
         
-        return {
-            "success": success,
-            "message": "Enhanced test notification sent successfully" if success else "Failed to send enhanced test notification",
-            "notification_details": {
-                "service": test_notification.service,
-                "priority": test_notification.priority,
-                "severity": test_notification.severity,
-                "components_count": len(test_notification.components_affected),
-                "has_eta": bool(test_notification.recovery_eta),
-                "has_incident_url": bool(test_notification.incident_url)
-            },
-            "webhook_url": SLACK_WEBHOOK_URL[:50] + "..." if len(SLACK_WEBHOOK_URL) > 50 else SLACK_WEBHOOK_URL,
-            "channel": SLACK_CHANNEL,
-            "debug_info": {
-                "webhook_configured": bool(SLACK_WEBHOOK_URL),
-                "monitoring_active": monitoring_active,
-                "rate_limiting_active": len(notification_history) > 0
+        # Create test payload directly to bypass rate limiting
+        payload = create_enhanced_slack_message(test_notification)
+        
+        timeout = httpx.Timeout(30.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(
+                SLACK_WEBHOOK_URL,
+                json=payload,
+                headers={"Content-Type": "application/json"}
+            )
+            
+            success = response.status_code == 200
+            
+            return {
+                "success": success,
+                "message": "Enhanced test notification sent successfully" if success else f"Failed to send test notification: {response.status_code}",
+                "notification_details": {
+                    "service": test_notification.service,
+                    "priority": test_notification.priority,
+                    "severity": test_notification.severity,
+                    "components_count": len(test_notification.components_affected),
+                    "has_incident_url": bool(test_notification.incident_url),
+                    "notification_hash": create_notification_hash(test_notification)[:8]
+                },
+                "webhook_url": SLACK_WEBHOOK_URL[:50] + "..." if len(SLACK_WEBHOOK_URL) > 50 else SLACK_WEBHOOK_URL,
+                "channel": SLACK_CHANNEL,
+                "debug_info": {
+                    "webhook_configured": bool(SLACK_WEBHOOK_URL),
+                    "monitoring_active": monitoring_active,
+                    "is_primary_instance": global_lock is not None,
+                    "deduplication_enabled": True,
+                    "response_status": response.status_code if 'response' in locals() else None
+                }
             }
-        }
+            
     except Exception as e:
         logger.error(f"Test notification error: {e}")
         return {"error": f"Test notification failed: {str(e)}", "success": False}
 
 @app.post("/api/slack/force-check")
 async def force_enhanced_status_check():
-    """Force an immediate enhanced status check with detailed debugging"""
+    """Force an immediate enhanced status check with proper singleton handling"""
     global previous_status
     
+    if not global_lock:
+        return {
+            "error": "This is not the primary monitoring instance. Only the primary instance can force checks.",
+            "success": False,
+            "instance_id": instance_id,
+            "is_primary": False
+        }
+    
     try:
-        logger.info("🔧 Force check initiated via API")
+        logger.info("Force check initiated via API")
         current_status = await get_current_status_data()
         
         if not previous_status:
@@ -1420,19 +2254,21 @@ async def force_enhanced_status_check():
                 "message": "Status initialized, no changes to report", 
                 "status": "initialized",
                 "timestamp": current_status['timestamp'],
-                "services_loaded": list(current_status.get('details', {}).keys())
+                "services_loaded": list(current_status.get('details', {}).keys()),
+                "instance_id": instance_id,
+                "is_primary": True
             }
         
         # Log detailed comparison for debugging
-        logger.info("🔍 Comparing status for force check...")
+        logger.info("Comparing status for force check...")
         for service in MONITORED_SERVICES:
             if service in current_status.get("details", {}) and service in previous_status.get("details", {}):
                 current = current_status["details"][service]
                 previous = previous_status["details"][service]
                 if current != previous:
-                    logger.info(f"  📊 {service}: {previous} → {current}")
+                    logger.info(f"  {service}: {previous} → {current}")
                 else:
-                    logger.debug(f"  ✓ {service}: no change ({current})")
+                    logger.debug(f"  {service}: no change ({current})")
         
         notifications = detect_enhanced_status_changes(current_status, previous_status)
         
@@ -1441,7 +2277,7 @@ async def force_enhanced_status_check():
         
         for notification in notifications:
             try:
-                logger.info(f"📨 Sending force check notification for {notification.service}")
+                logger.info(f"Sending force check notification for {notification.service}")
                 success = await send_enhanced_slack_notification(notification)
                 notification_data = {
                     "service": notification.service,
@@ -1449,7 +2285,8 @@ async def force_enhanced_status_check():
                     "priority": notification.priority,
                     "severity": notification.severity,
                     "components_affected": len(notification.components_affected),
-                    "sent": success
+                    "sent": success,
+                    "hash": create_notification_hash(notification)[:8]
                 }
                 
                 if success:
@@ -1473,7 +2310,9 @@ async def force_enhanced_status_check():
             "failed_notifications": failed_notifications,
             "total_changes_detected": len(notifications),
             "timestamp": current_status['timestamp'],
-            "monitoring_active": monitoring_active
+            "monitoring_active": monitoring_active,
+            "instance_id": instance_id,
+            "is_primary": True
         }
         
     except Exception as e:
@@ -1517,10 +2356,11 @@ async def enhanced_main_status_page(request: Request):
 
 if __name__ == "__main__":
     import uvicorn
-    logger.info("Starting Enhanced Status Monitor with Live Slack Integration")
+    logger.info("Starting Enhanced Status Monitor with Fixed Slack Integration")
     logger.info(f"Monitoring interval: {MONITORING_INTERVAL} seconds")
     logger.info(f"Slack notifications: {'Enabled' if SLACK_WEBHOOK_URL else 'Disabled'}")
     logger.info(f"Change confirmation cycles: {CHANGE_CONFIRMATION_CYCLES}")
     logger.info(f"Rate limiting: {MAX_NOTIFICATIONS_PER_HOUR}/hour, {NOTIFICATION_COOLDOWN}s cooldown")
     logger.info(f"Monitored services: {', '.join(MONITORED_SERVICES)}")
+    logger.info(f"Instance ID: {instance_id}")
     uvicorn.run(app, host="0.0.0.0", port=8000)
